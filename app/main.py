@@ -3,6 +3,7 @@ import base64
 import uuid
 from typing import List, Optional
 from sqlalchemy import Table, Column, String, MetaData, select, text, desc
+from sqlalchemy.orm import Session
 
 from dbos import DBOS
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
