@@ -8,11 +8,10 @@ from contextlib import asynccontextmanager
 from sqlalchemy import create_engine, Table, Column, String, MetaData, select, desc, DateTime, func
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from dotenv import load_dotenv
-# from pyt2s.services import stream_elements # Kept for now, remove if not used in full original file
 
 load_dotenv()
 
@@ -34,12 +33,12 @@ stories_table = Table(
     "stories",
     metadata,
     Column("id", String, primary_key=True),
-    Column("image_data", String), # Consider TEXT type for large base64 strings
+    Column("image_data", String),
     Column("keywords", String),
-    Column("story", String), # Consider TEXT type for long stories
+    Column("story", String),
     Column("created_at", DateTime, default=func.now(), server_default=func.now()),
     Column("language", String),
-    Column("audio_data", String), # Consider TEXT type
+    Column("audio_data", String),
     Column("student_name", String),
     Column("school_name", String),
     Column("class_name", String)
@@ -59,13 +58,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Mount static files directory (assuming 'html' is at the project root where uvicorn runs)
+# Mount static files directory
 app.mount("/static", StaticFiles(directory="html"), name="static")
 
-# Initialize OpenAI client (API key from OPENAI_API_KEY env var)
+# Initialize OpenAI client
 client = OpenAI()
 
-# --- System Message for OpenAI ---
+# --- System Prompt for GPT ---
 system_message = """You are a helpful assistant tasked with analyzing traditional Emirati children's drawings.
 These drawings capture elements of the rich cultural heritage, local traditions, and daily life of the UAE as interpreted by children.
 Your role is to create a cohesive, imaginative story inspired by the visuals. The story should reflect the cultural significance of the elements in the drawings while maintaining a sense of wonder and adventure appropriate for children.
@@ -77,10 +76,9 @@ Ensure the narrative is engaging, fun, and educational, incorporating aspects of
 - Return only the story, no other text or comments.
 - The story should be in {language}.
 - Ensure the story uses proper {language} grammar and vocabulary.
-
 """
 
-# --- Dependency to get DB session ---
+# --- DB Dependency ---
 def get_db():
     db = SessionLocal()
     try:
@@ -88,11 +86,11 @@ def get_db():
     finally:
         db.close()
 
-# --- Helper Functions ---
+# --- Helpers ---
 def encode_image(image_data):
     return base64.b64encode(image_data).decode("utf-8")
 
-# --- Database Operations ---
+# --- DB Functions ---
 def save_story_db(db: Session, story_id: str, image_data: str, keywords: str, story_content: str, language: str,
                   student_name: str = "", school_name: str = "", class_name: str = "") -> None:
     try:
@@ -121,12 +119,9 @@ def save_audio_data_db(db: Session, story_id: str, audio_data: bytes) -> None:
         result = db.execute(upd)
         db.commit()
         if result.rowcount == 0:
-            logger.warning(f"Attempted to save audio for non-existent story ID: {story_id}")
             raise HTTPException(status_code=404, detail="Story not found to save audio")
-        logger.info(f"Audio data saved for story ID: {story_id}")
     except Exception as e:
         db.rollback()
-        logger.error(f"Error saving audio data to DB: {str(e)}")
         raise
 
 def get_story_history_db(db: Session, limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
@@ -141,7 +136,7 @@ def get_story_history_db(db: Session, limit: int = 10, offset: int = 0, include_
 
         query = select(*columns_to_select).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
         result_proxy = db.execute(query)
-        
+
         story_list = []
         for row in result_proxy.fetchall():
             story_dict = {
@@ -204,36 +199,28 @@ def delete_story_by_id_db(db: Session, story_id: str) -> bool:
         return result.rowcount > 0
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting story ID ({story_id}) from DB: {str(e)}")
         raise
 
 # --- API Endpoints ---
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Hekayah API. Visit /story-history to view stories."}
+
 @app.get("/story-history")
 def story_history_endpoint(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
                            include_images: bool = Query(True), db: Session = Depends(get_db)):
-    if limit < 1: limit = 10
-    elif limit > 100: limit = 100
-    if offset < 0: offset = 0
-    
     try:
-        stories_list = get_story_history_db(db, limit=limit, offset=offset, include_images=include_images)
-        return stories_list if stories_list is not None else []
+        return get_story_history_db(db, limit, offset, include_images)
     except Exception as e:
         logger.error(f"Error in story-history endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error retrieving story history.")
+        raise HTTPException(status_code=500, detail="Error retrieving story history")
 
 @app.get("/story/{story_id}")
 def get_story_endpoint(story_id: str, include_audio: bool = Query(False), db: Session = Depends(get_db)):
-    try:
-        story_data = get_story_by_id_db(db, story_id, include_audio)
-        if not story_data:
-            raise HTTPException(status_code=404, detail="Story not found")
-        return story_data
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in get_story endpoint for ID {story_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error retrieving story.")
+    story_data = get_story_by_id_db(db, story_id, include_audio)
+    if not story_data:
+        raise HTTPException(status_code=404, detail="Story not found")
+    return story_data
 
 @app.post("/analyze-image")
 async def analyze_image_endpoint(
@@ -254,10 +241,8 @@ async def analyze_image_endpoint(
             raise HTTPException(status_code=400, detail="Empty image file")
 
         base64_image = encode_image(image_data)
-        logger.info(f"Analyzing image for keywords: {keywords}, language: {language}, student: {student_name}")
-
         formatted_system_message = system_message.format(language=language)
-        
+
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -269,7 +254,7 @@ async def analyze_image_endpoint(
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:{image.content_type};base64,{base64_image}", # Use actual content type
+                                "url": f"data:{image.content_type};base64,{base64_image}",
                                 "detail": "high",
                             },
                         },
@@ -277,44 +262,25 @@ async def analyze_image_endpoint(
                 }
             ],
         )
+
         story_content = completion.choices[0].message.content
         story_id = str(uuid.uuid4())
-
         save_story_db(db, story_id, base64_image, keywords, story_content, language, student_name, school_name, class_name)
-        
-        return {"story": story_content, "id": story_id}
 
-    except HTTPException:
-        raise
+        return {"story": story_content, "id": story_id}
     except Exception as e:
-        logger.error(f"Unexpected error in analyze_image: {str(e)}")
-        if "OpenAI" in str(e) or type(e).__name__.startswith("OpenAI") or "api_error" in str(e).lower():
-             raise HTTPException(status_code=503, detail="Error communicating with AI service.")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred during image analysis.")
+        logger.error(f"Error in analyze_image: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing image and generating story.")
 
 @app.delete("/story/{story_id}")
 def delete_story_endpoint(story_id: str, db: Session = Depends(get_db)):
-    try:
-        logger.info(f"Attempting to delete story with ID: {story_id}")
-        success = delete_story_by_id_db(db, story_id)
-        if not success:
-            raise HTTPException(status_code=404, detail="Story not found or could not be deleted")
-        return {"message": "Story deleted successfully", "id": story_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in delete_story endpoint for ID {story_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error deleting story.")
+    success = delete_story_by_id_db(db, story_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Story not found or could not be deleted")
+    return {"message": "Story deleted successfully", "id": story_id}
 
-# Serve app.html from root if needed, or ensure frontend points to /static/app.html
-# Example: if app.html is the main entry point and should be served from "/"
-# from fastapi.responses import FileResponse
-# @app.get("/", response_class=FileResponse)
-# async def read_index():
-#    return "html/app.html"
-
+# --- Run Locally ---
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting Uvicorn server for local development on http://localhost:8000")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) # Assuming file is named main.py
-
+    logger.info("Starting Uvicorn server at http://localhost:8000")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
