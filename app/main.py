@@ -12,6 +12,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pyt2s.services import stream_elements
 
+from fastapi import FastAPI, Query, HTTPException, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import select, desc
+from typing import List
+
+
+
 load_dotenv()
 
 # Initialize Maydan Al Hekayah application with DBOS and FastAPI
@@ -55,9 +62,46 @@ Ensure the narrative is engaging, fun, and educational, incorporating aspects of
 
 """
 
-# Helper function to encode image to base64
-def encode_image(image_data):
-    return base64.b64encode(image_data).decode("utf-8")
+def get_story_history_db(
+    db: Session,
+    limit: int = 10,
+    offset: int = 0,
+    include_images: bool = True
+) -> List[dict]:
+    try:
+        columns_to_select = [
+            stories_table.c.id,
+            stories_table.c.keywords,
+            stories_table.c.created_at,
+            stories_table.c.language,
+            stories_table.c.student_name,
+            stories_table.c.school_name,
+            stories_table.c.class_name
+        ]
+        if include_images:
+            columns_to_select.insert(2, stories_table.c.image_data)  # Insert image after ID and keywords
+
+        query = select(*columns_to_select).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
+        result_proxy = db.execute(query)
+        
+        story_list = []
+        for row in result_proxy.fetchall():
+            story_dict = {
+                "id": row.id,
+                "keywords": row.keywords,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "language": row.language or "Arabic",
+                "student_name": row.student_name or "",
+                "school_name": row.school_name or "",
+                "class_name": row.class_name or ""
+            }
+            if include_images:
+                story_dict["image_data"] = row.image_data
+            story_list.append(story_dict)
+        return story_list
+    except Exception as e:
+        logger.error(f"Error retrieving story history from DB: {str(e)}")
+        return []
 
 # Database transaction to save a story
 @DBOS.transaction()
@@ -182,41 +226,22 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
         # Return empty list on error instead of failing
         return []
 
-# Endpoint to get story history
 @app.get("/story-history")
-def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(True)):
+def story_history_endpoint(
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    include_images: bool = Query(True),
+    db: Session = Depends(get_db)
+):
     try:
-        # Ensure limit is within valid range
-        if limit < 1:
-            limit = 10
-        elif limit > 100:
-            limit = 100
-            
-        # Ensure offset is non-negative
-        if offset < 0:
-            offset = 0
-            
-        stories = get_story_history(limit=limit, offset=offset, include_images=include_images)
-        
-        # Return empty list if no stories found
-        if stories is None:
-            return []
-            
-        return stories
+        stories_list = get_story_history_db(
+            db, limit=limit, offset=offset, include_images=include_images
+        )
+        return stories_list if stories_list is not None else []
     except Exception as e:
-        # Log the error with details
-        error_message = str(e)
-        DBOS.logger.error(f"Error in story-history endpoint: {error_message}")
+        logger.error(f"Error in story-history endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error retrieving story history.")
         
-        # Check if it's a disk space error
-        if "No space left on device" in error_message:
-            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
-            # Return a more specific error for disk space issues
-            return {"error": "Database storage is full. Please contact the administrator."}
-        
-        # For other errors, return an empty list instead of error
-        return []
-
 # Database transaction to get a specific story by ID
 @DBOS.transaction()
 def get_story_by_id(story_id: str, include_audio: bool = False) -> Optional[dict]:
@@ -616,6 +641,17 @@ def vacuum_database():
             status_code=500,
             content={"success": False, "error": f"Database maintenance error: {error_message}"}
         )
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 # Direct database function to save a story (no DBOS transaction)
 def direct_save_story(story_id: str, image_data: str, keywords: str, story: str, language: str, 
