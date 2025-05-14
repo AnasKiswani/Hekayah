@@ -374,6 +374,7 @@ async def analyze_image(
         
         # Create the OpenAI API request
         try:
+            logger.info("Calling OpenAI API with image and keywords...")
             completion = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
