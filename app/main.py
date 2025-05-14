@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -60,7 +60,8 @@ client = OpenAI()
 
 system_message = """You are a helpful assistant tasked with analyzing traditional Emirati children's drawings.
 These drawings capture elements of the rich cultural heritage, local traditions, and daily life of the UAE as interpreted by children.
-Your role is to create a cohesive, imaginative story inspired by the visuals...
+Your role is to create a cohesive, imaginative story inspired by the visuals.
+Ensure the narrative is engaging, fun, and educational, incorporating aspects of the Emirati heritage.
 The story should be in {language}.
 """
 
@@ -114,6 +115,7 @@ def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, g
             for row in result.fetchall()
         ]
     except Exception as e:
+        logger.error(f"Error in story-history: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/story/{story_id}")
@@ -148,6 +150,7 @@ def get_story(story_id: str, include_audio: bool = Query(False), db: Session = D
             story["audio_data"] = row.audio_data
         return story
     except Exception as e:
+        logger.error(f"Error in get_story: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze-image")
@@ -170,6 +173,8 @@ async def analyze_image(
 
         base64_img = encode_image(image_data)
         prompt = system_message.format(language=language)
+
+        logger.info("Sending request to OpenAI for story generation...")
 
         completion = client.chat.completions.create(
             model="gpt-4o",
@@ -200,8 +205,12 @@ async def analyze_image(
         ))
         db.commit()
 
+        logger.info(f"Story created with ID: {story_id}")
         return {"story": story_content, "id": story_id}
 
+    except OpenAIError as oe:
+        logger.error(f"OpenAI API error: {str(oe)}")
+        raise HTTPException(status_code=503, detail=f"OpenAI error: {str(oe)}")
     except Exception as e:
         logger.error(f"Unexpected error in analyze_image: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error during image analysis: {str(e)}")
@@ -215,6 +224,7 @@ def delete_story(story_id: str, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Story not found")
         return {"message": "Deleted successfully", "id": story_id}
     except Exception as e:
+        logger.error(f"Error in delete_story: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Dev Server Run ---
