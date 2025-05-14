@@ -115,7 +115,7 @@ def enforce_story_limit(max_stories: int = 20) -> None:
             DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
     except OpenAIError as e:
         logger.error(f"OpenAI API error: {e}")
-        raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"⚠️ OpenAI error → {str(e)}")
 
     except Exception as e:
         DBOS.logger.error(f"Error enforcing story limit: {str(e)}")
@@ -184,14 +184,30 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
 
 # Endpoint to get story history
 @app.get("/story-history")
-def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(True)):
+def get_story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(False), db: Session = Depends(get_db)):
     try:
-        # Ensure limit is within valid range
-        if limit < 1:
-            limit = 10
-        elif limit > 100:
-            limit = 100
-            
+        columns = [
+            stories_table.c.id,
+            stories_table.c.keywords,
+            stories_table.c.created_at,
+            stories_table.c.language,
+            stories_table.c.student_name,
+            stories_table.c.school_name,
+            stories_table.c.class_name
+        ]
+        if include_images:
+            columns.insert(2, stories_table.c.image_data)
+        query = select(*columns).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
+        results = db.execute(query).fetchall()
+        response = []
+        for row in results:
+            item = dict(row._mapping)
+            response.append(item)
+        return response
+    except Exception as e:
+        logger.error(f"Error in story-history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
         # Ensure offset is non-negative
         if offset < 0:
             offset = 0
