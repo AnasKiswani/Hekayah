@@ -1,0 +1,41 @@
+name: hekayah
+language: python
+runtimeConfig:
+  start:
+    - fastapi run app/main.py
+database:
+  hostname: userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+  port: 5432
+  username: dbos_user
+  password: heritage2025
+  app_db_name: postgres
+  migrate:
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "CREATE TABLE IF NOT EXISTS stories
+      (id VARCHAR(36) PRIMARY KEY, image_data TEXT, keywords VARCHAR(255), story
+      TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "ALTER TABLE stories ADD COLUMN IF NOT
+      EXISTS language VARCHAR(50) DEFAULT 'Arabic';"
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "ALTER TABLE stories ADD COLUMN IF NOT
+      EXISTS audio_data TEXT;"
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "ALTER TABLE stories ADD COLUMN IF NOT
+      EXISTS student_name VARCHAR(255);"
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "ALTER TABLE stories ADD COLUMN IF NOT
+      EXISTS school_name VARCHAR(255);"
+    - PGPASSWORD=heritage2025 psql -h
+      userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com
+      -p 5432 -U dbos_user -d postgres -c "ALTER TABLE stories ADD COLUMN IF NOT
+      EXISTS class_name VARCHAR(255);"
+  local_suffix: false
+telemetry:
+  logs:
+    logLevel: INFO

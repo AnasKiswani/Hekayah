@@ -1,0 +1,1385 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>ميدان الحكاية | Meydan Al Hekayah</title>
+    <link rel="icon" href="https://dbos-blog-posts.s3.us-west-1.amazonaws.com/live-demo/favicon.ico" type="image/x-icon" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!--  Tailwind  -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!--  Runtime palette override  -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#B91C1C',        // deep red
+              amber: {
+                DEFAULT: '#FBBF24',     // golden amber
+                dark: '#F59E0B'         // darker hover state
+              },
+              info:   '#1D4ED8',         // blue for helper text
+              surface:'#EFF5EE'          // minty surface background
+            }
+          }
+        }
+      }
+    </script>
+
+    <!--  Fonts  -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!--  Custom tweaks  -->
+    <style>
+      html, body {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 auto;
+        overflow-x: hidden !important;
+      }
+      
+      body {
+        font-family: 'Tajawal', sans-serif;
+        background-color: #ffffff;
+        min-width: 0;
+        overflow-x: hidden !important;
+      }
+
+      .main-container {
+        width: 100%;
+        max-width: 1000px;
+        min-width: 0;
+        margin: 0 auto;
+        padding: 0 20px;
+        position: relative;
+      }
+
+      /* Special override for header container only */
+      .header-banner .main-container {
+        width: 100%;
+        max-width: 1000px;
+        min-width: 0;
+        padding: 0;
+      }
+
+      .header-banner {
+        position: relative !important;
+        width: 100% !important;
+        left: 0 !important;
+        transform: none !important;
+        background-color: #f3f0f5;
+        border-bottom: 1px solid rgba(251,191,36,.3);
+        padding: 0.5rem 0;
+        margin-bottom: 2rem;
+      }
+
+      .header-banner img {
+        position: relative !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        left: 0 !important;
+        transform: none !important;
+      }
+
+      /* Adjust header images position */
+      .header-left-img {
+        left: 450px;
+        top: 50px;
+      }
+
+      .header-right-img {
+        right: 580px;
+        top: 50px;
+      }
+
+      /* Adjust title spacing */
+      .title-container {
+        gap: 2rem !important;
+        margin-bottom: 2rem !important;
+        margin-left: 0 !important;
+      }
+
+      .title-text {
+        font-size: 3rem !important;
+        margin: 0;
+        line-height: 1.2;
+      }
+
+      /* Adjust story grid */
+      #storyList {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+        gap: 20px;
+        width: 100%;
+        max-width: 980px;
+        margin: 0 auto;
+      }
+
+      .story-item {
+        width: 100%;
+      }
+
+      .story-card-image {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16/9;
+      }
+
+      /* Modal adjustments */
+      .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.7);
+        z-index: 100;
+        display: none;
+        overflow-y: auto;
+      }
+
+      .modal.active {
+        display: block;
+      }
+
+      .modal-content {
+        background-color: #fff;
+        width: 90%;
+        min-width: 0;
+        max-width: 900px;
+        margin: 20px auto;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,.2);
+        position: relative;
+        transform: scale(.9);
+        opacity: 0;
+        transition: all .3s ease;
+        padding: 1rem;
+      }
+
+      .modal.active .modal-content {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .modal-image-section {
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+      }
+
+      .modal-image-section img {
+        width: 100%;
+        height: auto;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      .modal-story-section {
+        width: 100%;
+      }
+
+      .modal-story-section .story-container {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        line-height: 1.8;
+        width: 100%;
+      }
+
+      .modal-play-container {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+      }
+
+      .modal-play-container .play-button {
+        width: 48px;
+        height: 48px;
+      }
+
+      .modal-metadata {
+        width: 100%;
+        max-width: 300px;
+        margin: 1rem auto 0;
+      }
+
+      .modal-metadata-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .modal-metadata-label {
+        color: #666;
+        margin-left: 0.5rem;
+        font-weight: 500;
+      }
+
+      .modal-metadata-value {
+        color: #333;
+      }
+
+      #closeModal {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 50%;
+        padding: 0.5rem;
+        transition: all 0.2s ease;
+      }
+
+      #closeModal:hover {
+        background-color: #e9ecef;
+        transform: scale(1.1);
+      }
+
+      #deleteStoryBtn {
+        margin-top: 1rem;
+        width: auto;
+        padding: 0.75rem 1.5rem;
+      }
+
+      /* Adjust decorative edges position */
+      .side-images-container {
+        position: fixed !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        top: 0 !important;
+        left: 0 !important;
+        z-index: -1 !important;
+        pointer-events: none !important;
+      }
+      
+      .side-image-left {
+        position: fixed !important;
+        left: calc(50% - 780px) !important;
+        top: 200px !important;
+        width: 256px;
+        z-index: -1;
+      }
+
+      .side-image-right {
+        position: fixed !important;
+        right: calc(50% - 780px) !important;
+        top: 200px !important;
+        width: 256px;
+        z-index: -1;
+      }
+
+      /* keep existing component styles */
+      .upload-box {
+        border: 3px dashed #51c6eb;
+        transition: all 0.3s ease;
+        min-height: 200px;
+        width: 100%;
+        max-width: 960px;
+      }
+      .upload-box:hover {
+        border-color: #3ba5c7;
+        transform: scale(1.02);
+      }
+
+      .story-container {
+        white-space: pre-wrap;
+        text-align: right;
+        line-height: 1.8;
+        margin-right: 0;
+        margin-left: 0;
+        position: relative;
+        width: 960px;
+      }
+
+      #spinner { animation: spin 1s linear infinite; }
+      @keyframes spin { 0%{transform:rotate(0deg);} 100%{transform:rotate(360deg);} }
+
+      .story-item {
+        transition: transform 0.3s ease;
+        width: 225px;
+      }
+      
+      .story-item:hover { 
+        background-color: #fff8e6; 
+        transform: translateX(-5px); 
+      }
+
+      .decorative-elements {
+        display: none;
+      }
+
+      .decorative-left, .decorative-right {
+        display: none;
+      }
+
+      .story-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 225px);
+        gap: 20px;
+        width: 980px;
+      }
+
+      .story-card-image {
+        width: 225px;
+        height: 128px;
+        object-fit: cover;
+      }
+
+      /* Maintain other existing styles */
+      .field-arrow {
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        display: inline-block;
+        vertical-align: middle;
+      }
+
+      .custom-radio {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 1.25rem;
+        height: 1.25rem;
+        border: 2px solid #b62126;
+        border-radius: 50%;
+        outline: none;
+        cursor: pointer;
+        position: relative;
+      }
+      
+      .custom-radio:checked {
+        background-color: #fff;
+      }
+      
+      .custom-radio:checked::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 0.6rem;
+        height: 0.6rem;
+        background-color: #b62126;
+        border-radius: 50%;
+      }
+      
+      .custom-radio:focus {
+        box-shadow: 0 0 0 3px rgba(182, 33, 38, 0.3);
+      }
+
+      .play-button {
+        width: 36px;
+        height: 36px;
+        border-radius: 9999px;
+        background-color: rgba(182,33,38,.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all .3s ease;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,.2);
+        z-index: 10;
+      }
+
+      .play-button:hover {
+        background-color: rgba(150,27,31,.95);
+        transform: scale(1.05);
+      }
+
+      .play-button.playing {
+        background-color: rgba(182,33,38,.85);
+      }
+
+      .play-button.playing:hover {
+        background-color: rgba(150,27,31,.95);
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(182,33,38,.7); }
+        70% { box-shadow: 0 0 0 10px rgba(182,33,38,0); }
+        100% { box-shadow: 0 0 0 0 rgba(182,33,38,0); }
+      }
+
+      .pulsing {
+        animation: pulse 1.5s infinite;
+      }
+
+      /* Story container positioning */
+      .story-container {
+        position: relative;
+        min-height: 100px;
+        padding-bottom: 40px; /* Space for play button */
+      }
+
+      /* Responsive media queries */
+      @media (min-width: 768px) {
+        .modal-grid {
+          grid-template-columns: 300px 1fr;
+        }
+
+        #storyList {
+          grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+        }
+
+        .modal-content {
+          padding: 2rem;
+        }
+
+        .modal-story-section .story-container {
+          padding: 2rem;
+        }
+      }
+
+      @media (max-width: 767px) {
+        .title-text {
+          font-size: 2rem !important;
+        }
+
+        .modal-content {
+          width: 95%;
+          margin: 10px auto;
+          padding: 1rem;
+        }
+
+        .modal-image-section {
+          max-width: 100%;
+        }
+
+        .modal-image-section img {
+          max-height: 300px;
+          object-fit: contain;
+        }
+
+        .modal-story-section .story-container {
+          padding: 1rem;
+          font-size: 0.95rem;
+        }
+
+        .modal-metadata {
+          max-width: 100%;
+        }
+
+        .modal-metadata-item {
+          flex-direction: column;
+          align-items: flex-start;
+          margin-bottom: 1rem;
+        }
+
+        .modal-metadata-label {
+          margin-bottom: 0.25rem;
+        }
+
+        #closeModal {
+          top: 0.5rem;
+          left: 0.5rem;
+        }
+
+        .modal-play-container {
+          margin-top: 0.5rem;
+        }
+
+        .play-button {
+          width: 40px;
+          height: 40px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .modal-content {
+          width: 100%;
+          margin: 0;
+          min-height: 100vh;
+          border-radius: 0;
+        }
+
+        .modal-image-section img {
+          max-height: 250px;
+        }
+      }
+
+      /* Add new styles for story cards */
+      .story-card-image {
+        height: 200px;
+        width: 100%;
+        background-color: #f1f1f1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .story-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        width: 100%;
+      }
+
+      .story-item {
+        transition: transform 0.3s ease;
+        width: auto;
+        cursor: pointer;
+      }
+      
+      .story-item:hover { 
+        transform: scale(1.03); 
+        background-color: white;
+      }
+
+      /* Style overrides for story layout */
+      .story-layout-container {
+        position: relative;
+        width: 175px;
+        height: 175px;
+      }
+      
+      .story-layout-image {
+        width: 100%;
+        height: auto;
+        position: relative;
+        z-index: 1;
+      }
+      
+      .story-image-overlay {
+        position: absolute;
+        top: 30px;
+        left: 22px;
+        right: 22px;
+        bottom: 70px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .story-actual-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+      
+      .story-info-overlay {
+        position: absolute;
+        bottom: 16px;
+        left: 20px;
+        right: 20px;
+        z-index: 3;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .student-name {
+        font-weight: bold;
+        color: #0D4C92;
+        padding: 3px 6px;
+        margin-bottom: 4px;
+        background-color: #FBBF24;
+        border-radius: 4px;
+        display: inline-block;
+        margin: 0 auto 4px auto;
+        position: relative;
+        bottom: 2px;
+        font-size: 0.85rem;
+      }
+      
+      .school-info {
+        color: #0D4C92;
+        font-size: 0.8rem;
+        line-height: 1.2;
+        font-weight: bold;
+        margin-top: 1px;
+        position: relative;
+        bottom: 0px;
+      }
+      
+      .story-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 175px);
+        gap: 10px;
+        justify-content: center;
+      }
+      
+      .story-item {
+        transition: transform 0.3s ease;
+        cursor: pointer;
+      }
+      
+      .story-item:hover {
+        transform: scale(1.05);
+      }
+
+      @media (max-width: 1024px) {
+        .story-grid {
+          grid-template-columns: repeat(3, 175px);
+          gap: 8px;
+        }
+      }
+      
+      @media (max-width: 768px) {
+        .story-grid {
+          grid-template-columns: repeat(2, 175px);
+          gap: 8px;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .story-grid {
+          grid-template-columns: repeat(1, 175px);
+          gap: 10px;
+        }
+        
+        .story-layout-container {
+          margin: 0 auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!--  Header Banner  -->
+    <div class="header-banner">
+      <!-- small decorative strokes -->
+      <!-- <img src="static/hekayah_left_small.png" alt="" class="absolute w-12 h-auto object-contain header-left-img" />
+      <img src="static/hekayah_right_small.png" alt="" class="absolute w-8 h-auto object-contain header-right-img" /> -->
+
+      <div class="main-container">
+        <div class="flex items-center justify-center">
+          <div class="flex-1 text-center">
+            <div class="flex justify-center items-center w-full">
+              <img src="static/Header.png" alt="ميدان الحكاية | Meydan Al Hekayah" style="width: 100%; max-height: 250px; object-fit: contain;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--  Decorative large edges  -->
+    <div class="side-images-container">
+      <img src="static/left_side.png" class="side-image-left" alt="" />
+      <img src="static/right_side.png" class="side-image-right" alt="" />
+    </div>
+
+    
+    <div class="main-container">
+      <div class="text-center mb-10">
+        <!-- Main logo (larger size) -->
+        <!-- <div class="flex justify-center mb-6">
+          <img src="static/hekayah.png" alt="Al Naliyah" class="w-[280px] h-auto object-contain" style="max-height: 120px;">
+        </div>
+        
+        <h1 class="text-4xl font-bold text-amber-600 mb-4">Meydan Al Hekayah | ميدان الحكاية</h1> -->
+        <!-- <h2 class="text-xl text-amber-500 mb-6">Meydan Al Hekayah</h2> -->
+        <!-- <p class="text-lg text-gray-700">قم بتحميل رسوماتك وأضف كلمات مفتاحية لإنشاء قصص إماراتية مميزة!</p> -->
+      </div>
+
+      <!-- Main Content Layout -->
+      <div class="w-full mx-auto">
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <form id="uploadForm" class="flex flex-col space-y-4">
+            <div id="keywordsLanguageContainer" class="flex flex-col md:flex-row gap-4 mb-4">
+              <div class="w-full md:w-1/2">
+                <label for="keywords" class="block text-gray-700 font-medium mb-2">
+                  <img src="static/arrow.png" alt="" class="field-arrow"> الكلمات المفتاحية (Keywords)
+                </label>
+                <input 
+                  type="text" 
+                  id="keywords" 
+                  name="keywords" 
+                  class="w-full p-3 border border-[#b62126] rounded-lg focus:ring-2 focus:ring-[#b62126] focus:border-[#b62126]"
+                  placeholder="أدخل الكلمات المفتاحية التي تريد أن تظهر في القصة"
+                >
+              </div>
+              
+              <div class="w-full md:w-1/2 md:pl-8">
+                <label for="language" class="block text-gray-700 font-medium mb-2 text-center">
+                  <img src="static/arrow.png" alt="" class="field-arrow"> لغة القصة (Story Language)
+                </label>
+                <div class="flex justify-center space-x-8 space-x-reverse h-full items-start mt-0 md:mt-5">
+                  <div class="flex items-center">
+                    <input 
+                      type="radio" 
+                      id="langArabic" 
+                      name="language" 
+                      value="Arabic" 
+                      class="custom-radio"
+                      checked
+                    >
+                    <label for="langArabic" class="mr-2 text-gray-700">العربية</label>
+                  </div>
+                  <div class="flex items-center">
+                    <input 
+                      type="radio" 
+                      id="langEnglish" 
+                      name="language" 
+                      value="English" 
+                      class="custom-radio"
+                    >
+                    <label for="langEnglish" class="mr-2 text-gray-700">English</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Student Information -->
+            <div class="mb-4">
+              <div class="w-full mb-4">
+                <input 
+                  type="text" 
+                  id="student_name" 
+                  name="student_name" 
+                  class="w-full p-3 border border-[#51c6eb] rounded-lg focus:ring-2 focus:ring-[#51c6eb] focus:border-[#51c6eb]"
+                  placeholder="اسم الطالب (Student Name)"
+                >
+              </div>
+              
+              <div class="flex flex-col md:flex-row gap-4">
+                <div class="w-full md:w-1/2">
+                  <input 
+                    type="text" 
+                    id="school_name" 
+                    name="school_name" 
+                    class="w-full p-3 border border-[#51c6eb] rounded-lg focus:ring-2 focus:ring-[#51c6eb] focus:border-[#51c6eb]"
+                    placeholder="اسم المدرسة (School Name)"
+                  >
+                </div>
+                
+                <div class="w-full md:w-1/2">
+                  <input 
+                    type="text" 
+                    id="class_name" 
+                    name="class_name" 
+                    class="w-full p-3 border border-[#51c6eb] rounded-lg focus:ring-2 focus:ring-[#51c6eb] focus:border-[#51c6eb]"
+                    placeholder="الصف (Class)"
+                  >
+                </div>
+              </div>
+            </div>
+            
+            <div 
+              id="dropZone" 
+              class="upload-box p-8 rounded-lg flex flex-col items-center justify-center cursor-pointer bg-white"
+            >
+              <div id="uploadPrompt" class="flex flex-col items-center">
+                <svg class="w-12 h-12 text-[#51c6eb] mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <p class="text-center text-gray-700 mb-1">اضغط هنا لتحميل رسمتك</p>
+                <p class="text-center text-gray-500 text-sm">أو اسحب وأفلت الصورة هنا</p>
+              </div>
+              
+              <div id="previewContainer" class="hidden w-full">
+                <div class="relative">
+                  <img id="imagePreview" class="max-h-60 mx-auto rounded-lg shadow" src="" alt="معاينة الرسمة">
+                  <button 
+                    id="removeImage" 
+                    type="button"
+                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 focus:outline-none"
+                  >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <input type="file" id="imageUpload" name="image" class="hidden" accept="image/*">
+            </div>
+
+            <button 
+              type="submit" 
+              id="submitButton" 
+              class="bg-[#51c6eb] hover:bg-[#3ba5c7] text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+            >
+              إنشاء القصة (Create Story)
+            </button>
+          </form>
+        </div>
+
+        <div id="storyContainer" class="hidden bg-white rounded-xl shadow-lg p-6 mb-8">
+          <div class="relative">
+            <h3 class="text-2xl font-bold text-[#b62126] mb-4">
+              <img src="static/arrow.png" alt="" class="field-arrow">القصة المُستوحاة:
+            </h3>
+            <div class="story-container text-gray-800" id="generatedStory"></div>
+            <button id="mainPlayButton" class="play-button absolute top-0 left-0 mt-1">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </button>
+            <audio id="mainAudio" class="hidden"></audio>
+          </div>
+        </div>
+
+        <div id="loadingIndicator" class="hidden">
+          <div class="flex flex-col items-center justify-center p-8">
+            <div id="spinner" class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full mb-4"></div>
+            <p class="text-gray-700 text-lg">جاري تحليل الرسمة وإنشاء القصة...</p>
+          </div>
+        </div>
+
+        <!-- Story History Section (moved from sidebar) -->
+        <div id="storyHistorySection" class="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <h2 class="text-xl font-bold text-[#b62126] mb-4 flex items-center">
+            <img src="static/arrow.png" alt="" class="field-arrow">
+            <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            سجل القصص (Story History)
+          </h2>
+          <p class="text-gray-600 mb-4">استعرض بعض القصص الجديدة المنشأة في الميدان.</p>
+          
+          <!-- Recent Stories Grid -->
+          <div id="recentStoriesGrid" class="story-grid mb-6">
+            <!-- Recent stories will be loaded here dynamically -->
+          </div>
+          
+          <a href="/history" class="block w-full bg-[#b62126] hover:bg-red-800 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out text-center">
+            <svg class="w-5 h-5 inline-block ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            عرض أرشيف القصص
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Story Detail Modal -->
+    <div id="storyModal" class="modal">
+      <div class="modal-content">
+        <button id="closeModal" class="text-gray-500 hover:text-gray-800">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+        
+        <div class="modal-grid">
+          <div class="modal-image-section">
+            <h3 class="text-xl font-bold text-[#b62126] mb-4">
+              الرسمة
+            </h3>
+            <div class="flex justify-center mb-4">
+              <img id="modalImage" src="" alt="رسمة القصة" class="w-full">
+            </div>
+            <div class="modal-metadata">
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اسم الطالب:</span>
+                <span id="modalStudentName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اسم المدرسة:</span>
+                <span id="modalSchoolName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">الصف:</span>
+                <span id="modalClassName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اللغة:</span>
+                <span id="modalLanguage" class="modal-metadata-value"></span>
+              </div>
+            </div>
+            <div class="modal-play-container">
+              <button id="modalPlayButton" class="play-button standalone-play-button">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </button>
+              <audio id="modalAudio" class="audio-player hidden"></audio>
+            </div>
+          </div>
+          
+          <div class="modal-story-section">
+            <h3 class="text-xl font-bold text-[#b62126] mb-4">
+              القصة
+            </h3>
+            <div id="modalStory" class="story-container text-gray-800"></div>
+            <button 
+              id="deleteStoryBtn" 
+              class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition duration-300 ease-in-out flex items-center"
+            >
+              <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+              حذف القصة
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const dropZone = document.getElementById('dropZone');
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewContainer = document.getElementById('previewContainer');
+        const removeImage = document.getElementById('removeImage');
+        const submitButton = document.getElementById('submitButton');
+        const uploadForm = document.getElementById('uploadForm');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const storyContainer = document.getElementById('storyContainer');
+        const generatedStory = document.getElementById('generatedStory');
+        const storyModal = document.getElementById('storyModal');
+        const closeModal = document.getElementById('closeModal');
+        const modalImage = document.getElementById('modalImage');
+        const modalStudentName = document.getElementById('modalStudentName');
+        const modalSchoolName = document.getElementById('modalSchoolName');
+        const modalClassName = document.getElementById('modalClassName');
+        const modalLanguage = document.getElementById('modalLanguage');
+        const modalStory = document.getElementById('modalStory');
+        const deleteStoryBtn = document.getElementById('deleteStoryBtn');
+        const mainPlayButton = document.getElementById('mainPlayButton');
+        const mainAudio = document.getElementById('mainAudio');
+        const modalPlayButton = document.getElementById('modalPlayButton');
+        const modalAudio = document.getElementById('modalAudio');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const recentStoriesGrid = document.getElementById('recentStoriesGrid');
+        let currentStoryId = null;
+        let currentlyViewedStoryId = null;
+        let currentlyViewedStory = null;
+        
+        // Load recent stories for the home page
+        loadRecentStories();
+        
+        // Function to load recent stories
+        async function loadRecentStories() {
+          try {
+            const response = await fetch('/story-history?limit=4&offset=0');
+            const stories = await response.json();
+            
+            // If we have stories, display them
+            if (stories && stories.length > 0) {
+              // Clear the container first
+              recentStoriesGrid.innerHTML = '';
+              
+              // Add each story to the grid
+              stories.forEach(story => {
+                const storyEl = createStoryElement(story);
+                recentStoriesGrid.appendChild(storyEl);
+              });
+            } else {
+              // If no stories, show a message
+              recentStoriesGrid.innerHTML = '<p class="text-gray-500 text-center w-full py-4">لا توجد قصص حتى الآن</p>';
+            }
+          } catch (error) {
+            console.error('Error loading recent stories:', error);
+            recentStoriesGrid.innerHTML = '<p class="text-gray-500 text-center w-full py-4">حدث خطأ أثناء تحميل القصص</p>';
+          }
+        }
+        
+        // Function to create a story element
+        function createStoryElement(story) {
+          const storyItem = document.createElement('div');
+          storyItem.className = 'story-item position-relative';
+          storyItem.setAttribute('data-id', story.id);
+          
+          // Get a random layout image number from the available ones (31, 33, 35, etc.)
+          const layoutNumbers = [31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 57, 59, 61];
+          const randomIndex = Math.floor(Math.random() * layoutNumbers.length);
+          const layoutNumber = layoutNumbers[randomIndex];
+          
+          const studentName = story.student_name || 'اسم الطالب';
+          const schoolName = story.school_name || 'مدرسة التعليم الجديدة';
+          
+          storyItem.innerHTML = `
+            <div class="story-layout-container">
+              <img src="static/website_stories_layout-${layoutNumber}.png" class="story-layout-image" alt="Story layout">
+              <div class="story-image-overlay">
+                <img class="story-actual-image" src="data:image/png;base64,${story.image_data}" alt="رسمة قصة">
+              </div>
+              <div class="story-info-overlay">
+                <div class="student-name">اقرأ المزيد</div>
+                <div class="school-info">${schoolName}</div>
+              </div>
+            </div>
+          `;
+          
+          storyItem.addEventListener('click', () => {
+            viewStory(story.id);
+          });
+          
+          return storyItem;
+        }
+        
+        // Function to view a story
+        async function viewStory(storyId) {
+          try {
+            const response = await fetch(`/story/${storyId}`);
+            const story = await response.json();
+            
+            if (story) {
+              // Update modal content
+              modalImage.src = `data:image/png;base64,${story.image_data}`;
+              modalStory.textContent = story.story;
+              modalStudentName.textContent = story.student_name || '-';
+              modalSchoolName.textContent = story.school_name || '-';
+              modalClassName.textContent = story.class_name || '-';
+              modalLanguage.textContent = story.language === 'English' ? 'English' : 'العربية';
+              
+              // Set current viewed story
+              currentlyViewedStoryId = storyId;
+              currentlyViewedStory = story;
+              
+              // Setup audio player
+              audioManager.setupAudioEvents(modalAudio, modalPlayButton);
+              
+              // Open modal
+              storyModal.classList.add('active');
+            }
+          } catch (error) {
+            console.error('Error viewing story:', error);
+            alert('حدث خطأ أثناء عرض القصة');
+          }
+        }
+
+        // Unified audio player manager
+        const audioManager = {
+          currentAudio: null,
+          currentButton: null,
+          
+          // Play audio for a specific story
+          play: function(storyId, button, audioElement, audioData = null) {
+            // Stop any currently playing audio
+            this.stop();
+            
+            // Set the new current audio and button
+            this.currentAudio = audioElement;
+            this.currentButton = button;
+            
+            // Setup audio source if needed
+            if (!audioElement.src || audioElement.src === '' || audioElement.src.indexOf(storyId) === -1) {
+              if (audioData) {
+                audioElement.src = `data:audio/mpeg;base64,${audioData}`;
+              } else {
+                audioElement.src = `/tts/${storyId}`;
+              }
+            }
+            
+            // Update button UI to show playing state
+            this.updateButtonUI(button, true);
+            
+            // Play the audio
+            return audioElement.play()
+              .catch(error => {
+                console.error('Error playing audio:', error);
+                this.updateButtonUI(button, false);
+                alert('حدث خطأ في تشغيل الصوت');
+                this.currentAudio = null;
+                this.currentButton = null;
+              });
+          },
+          
+          // Stop any currently playing audio
+          stop: function() {
+            if (this.currentAudio && !this.currentAudio.paused) {
+              this.currentAudio.pause();
+              this.updateButtonUI(this.currentButton, false);
+            }
+          },
+          
+          // Pause audio playback
+          pause: function(button, audioElement) {
+            if (audioElement && !audioElement.paused) {
+              audioElement.pause();
+              this.updateButtonUI(button, false);
+            }
+          },
+          
+          // Toggle play/pause for an audio element
+          toggle: function(storyId, button, audioElement, audioData = null) {
+            if (audioElement.paused) {
+              this.play(storyId, button, audioElement, audioData);
+            } else {
+              this.pause(button, audioElement);
+            }
+          },
+          
+          // Update button UI based on playing state
+          updateButtonUI: function(button, isPlaying) {
+            if (!button) return;
+            
+            if (isPlaying) {
+              button.classList.add('playing', 'pulsing');
+              button.innerHTML = `
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              `;
+            } else {
+              button.classList.remove('playing', 'pulsing');
+              button.innerHTML = `
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              `;
+            }
+          },
+          
+          // Setup audio event listeners
+          setupAudioEvents: function(audioElement, button) {
+            // Remove any existing event listeners first
+            audioElement.onplay = null;
+            audioElement.onpause = null;
+            audioElement.onended = null;
+            
+            // Set up new listeners
+            audioElement.addEventListener('play', () => {
+              this.updateButtonUI(button, true);
+            });
+            
+            audioElement.addEventListener('pause', () => {
+              this.updateButtonUI(button, false);
+            });
+            
+            audioElement.addEventListener('ended', () => {
+              this.updateButtonUI(button, false);
+              audioElement.currentTime = 0;
+              this.currentAudio = null;
+              this.currentButton = null;
+            });
+          }
+        };
+        
+        // Handle click on drop zone
+        dropZone.addEventListener('click', () => {
+          imageUpload.click();
+        });
+        
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('bg-amber-100');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('bg-amber-100');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('bg-amber-100');
+          
+          if (e.dataTransfer.files.length) {
+            handleImageFile(e.dataTransfer.files[0]);
+          }
+        });
+        
+        // Handle file selection
+        imageUpload.addEventListener('change', () => {
+          if (imageUpload.files.length) {
+            handleImageFile(imageUpload.files[0]);
+          }
+        });
+        
+        // Handle file preview
+        function handleImageFile(file) {
+          // Check if file is an image
+          if (!file.type.match('image.*')) {
+            alert('يرجى تحميل صورة فقط');
+            return;
+          }
+          
+          // Check file size (max 5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            alert('حجم الملف كبير جدًا. الحد الأقصى هو 5 ميجابايت');
+            return;
+          }
+          
+          const reader = new FileReader();
+          
+          reader.onload = (e) => {
+            imagePreview.src = e.target.result;
+            previewContainer.classList.remove('hidden');
+            // Comment out this line to keep the dropZone visible
+            // dropZone.classList.add('hidden');
+            uploadPrompt.classList.add('hidden');
+            submitButton.disabled = false;
+          };
+          
+          reader.readAsDataURL(file);
+        }
+        
+        // Handle remove image
+        removeImage.addEventListener('click', () => {
+          imagePreview.src = '';
+          previewContainer.classList.add('hidden');
+          dropZone.classList.remove('hidden');
+          uploadPrompt.classList.remove('hidden');
+          submitButton.disabled = true;
+          imageUpload.value = '';
+        });
+        
+        // Handle form submission
+        uploadForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          if (!imageUpload.files.length) {
+            alert('يرجى تحميل صورة أولاً');
+            return;
+          }
+          
+          // Get form data
+          const formData = new FormData(uploadForm);
+          
+          // Show loading indicator
+          loadingIndicator.classList.remove('hidden');
+          storyContainer.classList.add('hidden');
+          submitButton.disabled = true;
+          
+          try {
+            // Send request to analyze image
+            const response = await fetch('/analyze-image', {
+              method: 'POST',
+              body: formData
+            });
+            
+            // Try to parse the response JSON even if status is not OK
+            let data;
+            try {
+              data = await response.json();
+            } catch (jsonError) {
+              console.error('Error parsing JSON response:', jsonError);
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // Check if the response contains an error message
+            if (!response.ok) {
+              if (data && data.error) {
+                throw new Error(data.error);
+              } else {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+            }
+            
+            // Display the generated story
+            generatedStory.textContent = data.story;
+            storyContainer.classList.remove('hidden');
+            
+            // Save the current story ID
+            currentStoryId = data.id;
+            
+            // Setup main play button with the new story ID
+            audioManager.setupAudioEvents(mainAudio, mainPlayButton);
+            mainPlayButton.onclick = () => {
+              audioManager.toggle(currentStoryId, mainPlayButton, mainAudio);
+            };
+            
+          } catch (error) {
+            console.error('Error:', error);
+            
+            // Show a more specific error message if available
+            let errorMsg = 'حدث خطأ أثناء معالجة طلبك';
+            
+            // Check for disk space error
+            if (error.message && error.message.includes('Database storage is full')) {
+              errorMsg = 'خطأ في قاعدة البيانات: القرص ممتلئ. يرجى الاتصال بمسؤول النظام.';
+            } 
+            // Check for OpenAI API error
+            else if (error.message && error.message.includes('communicating with AI service')) {
+              errorMsg = 'حدث خطأ أثناء الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى.';
+            } 
+            // Use the error message from the API if available
+            else if (error.message) {
+              errorMsg = error.message;
+            }
+            
+            alert(errorMsg);
+          } finally {
+            // Hide loading indicator
+            loadingIndicator.classList.add('hidden');
+            submitButton.disabled = false;
+          }
+        });
+        
+        // Close modal
+        closeModal.addEventListener('click', () => {
+          storyModal.classList.remove('active');
+          
+          // Stop any playing audio when closing the modal
+          audioManager.pause(modalPlayButton, modalAudio);
+        });
+        
+        // Close modal when clicking outside the content
+        storyModal.addEventListener('click', (e) => {
+          if (e.target === storyModal) {
+            storyModal.classList.remove('active');
+            
+            // Stop any playing audio when closing the modal
+            audioManager.pause(modalPlayButton, modalAudio);
+          }
+        });
+        
+        // Setup modal audio player
+        modalPlayButton.addEventListener('click', () => {
+          if (currentlyViewedStoryId) {
+            audioManager.toggle(currentlyViewedStoryId, modalPlayButton, modalAudio);
+          }
+        });
+        
+        // Handle delete story button
+        deleteStoryBtn.addEventListener('click', async () => {
+          if (!currentlyViewedStoryId) return;
+          
+          // Ask for password
+          const password = prompt('الرجاء إدخال كلمة المرور للحذف:');
+          
+          // Check if password is correct (20252025)
+          if (password !== '20252025') {
+            alert('كلمة المرور غير صحيحة');
+            return;
+          }
+          
+          if (confirm('هل أنت متأكد من حذف هذه القصة؟')) {
+            try {
+              const response = await fetch(`/story/${currentlyViewedStoryId}`, {
+                method: 'DELETE'
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                // Close the modal
+                storyModal.classList.remove('active');
+                
+                // Reload the page to refresh the story list
+                window.location.reload();
+              } else {
+                alert('حدث خطأ أثناء حذف القصة');
+              }
+            } catch (error) {
+              console.error('Error:', error);
+              alert('حدث خطأ أثناء حذف القصة');
+            }
+          }
+        });
+        
+        function formatStoryTime(dateString) {
+          if (!dateString) return '';
+          
+          const date = new Date(dateString);
+          return date.toLocaleString('ar-SA', {
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

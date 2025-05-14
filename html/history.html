@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>أرشيف القصص | ميدان الحكاية</title>
+    <link rel="icon" href="https://dbos-blog-posts.s3.us-west-1.amazonaws.com/live-demo/favicon.ico" type="image/x-icon" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!--  Tailwind  -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!--  Runtime palette override  -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#B91C1C',        // deep red
+              amber: {
+                DEFAULT: '#FBBF24',     // golden amber
+                dark: '#F59E0B'         // darker hover state
+              },
+              info:   '#1D4ED8',         // blue for helper text
+              surface:'#EFF5EE'          // minty surface background
+            }
+          }
+        }
+      }
+    </script>
+
+    <!--  Fonts  -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!--  Custom tweaks  -->
+    <style>
+      html, body {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 auto;
+        overflow-x: hidden !important;
+      }
+      
+      body {
+        font-family: 'Tajawal', sans-serif;
+        background-color: #2a2a2a;
+        min-width: 0;
+        overflow-x: hidden !important;
+        background-image: url('static/history_bg.png');
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+      }
+
+      .main-container {
+        width: 100%;
+        max-width: 1000px;
+        min-width: 0;
+        margin: 0 auto;
+        padding: 0 20px;
+        position: relative;
+      }
+
+      /* Special override for header container only */
+      .header-banner .main-container {
+        width: 100%;
+        max-width: 1000px;
+        min-width: 0;
+        padding: 0;
+      }
+
+      .header-banner {
+        position: relative !important;
+        width: 100% !important;
+        left: 0 !important;
+        transform: none !important;
+        background-color: #f3f0f5;
+        border-bottom: 1px solid rgba(251,191,36,.3);
+        padding: 0.5rem 0;
+        margin-bottom: 2rem;
+      }
+
+      .header-banner img {
+        position: relative !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        left: 0 !important;
+        transform: none !important;
+      }
+
+      /* Adjust title spacing */
+      .title-container {
+        gap: 2rem !important;
+        margin-bottom: 2rem !important;
+        margin-left: 0 !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .title-text {
+        font-size: 3rem !important;
+        margin: 0;
+        line-height: 1.2;
+        color: #ffffff;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Style overrides for story layout */
+      .story-layout-container {
+        position: relative;
+        width: 175px;
+        height: 175px;
+      }
+      
+      .story-layout-image {
+        width: 100%;
+        height: auto;
+        position: relative;
+        z-index: 1;
+      }
+      
+      .story-image-overlay {
+        position: absolute;
+        top: 40px;
+        left: 28px;
+        right: 28px;
+        bottom: 93px;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .story-actual-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+      
+      .story-info-overlay {
+        position: absolute;
+        bottom: 20px;
+        left: 25px;
+        right: 25px;
+        z-index: 3;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .read-more-btn {
+        font-weight: bold;
+        color: #0D4C92;
+        padding: 4px 8px;
+        margin-bottom: 2px;
+        background-color: #FBBF24;
+        border-radius: 4px;
+        display: inline-block;
+        margin: 0 auto 6px auto;
+        position: relative;
+        bottom: 3px;
+      }
+      
+      .school-info {
+        color: #0D4C92;
+        font-size: 0.9rem;
+        line-height: 1.2;
+        font-weight: bold;
+        margin-top: 1px;
+        position: relative;
+        bottom: 0px;
+      }
+      
+      /* Story history grid */
+      #storyHistoryGrid {
+        display: grid;
+        grid-template-columns: repeat(5, 175px);
+        gap: 20px;
+        width: 100%;
+        max-width: 980px;
+        margin: 0 auto;
+        justify-content: center;
+      }
+
+      .story-frame {
+        position: relative;
+        width: 175px;
+        aspect-ratio: 1;
+        transition: transform 0.3s ease;
+        cursor: pointer;
+      }
+
+      .story-frame:hover {
+        transform: scale(1.05);
+      }
+
+      .story-info {
+        position: absolute;
+        bottom: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%;
+        text-align: center;
+        color: #fff;
+        font-weight: bold;
+        font-size: 0.9rem;
+        padding: 8px;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        background-color: #1d4ed8; /* Dark blue color as default */
+      }
+      
+      /* Pagination */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 2rem auto;
+        gap: 0.5rem;
+      }
+      
+      .page-btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.7);
+        color: #333;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      
+      .page-btn:hover {
+        background-color: rgba(251, 191, 36, 0.8);
+      }
+      
+      .page-btn.active {
+        background-color: #FBBF24;
+      }
+      
+      .back-btn {
+        background-color: #FBBF24;
+        color: #333;
+        padding: 0.5rem 1.5rem;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-block;
+        margin-top: 1rem;
+      }
+      
+      .back-btn:hover {
+        background-color: #F59E0B;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        background-color: rgba(0,0,0,0.7);
+        overflow-y: auto;
+      }
+
+      .modal.active {
+        display: block;
+      }
+
+      .modal-content {
+        background-color: #fff;
+        width: 90%;
+        min-width: 0;
+        max-width: 900px;
+        margin: 20px auto;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,.2);
+        position: relative;
+        transform: scale(.9);
+        opacity: 0;
+        transition: all .3s ease;
+        padding: 1rem;
+      }
+
+      .modal.active .modal-content {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .modal-image-section {
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+      }
+
+      .modal-image-section img {
+        width: 100%;
+        height: auto;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      .modal-story-section {
+        width: 100%;
+      }
+
+      .modal-story-section .story-container {
+        background-color: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        line-height: 1.8;
+        width: 100%;
+      }
+
+      .modal-play-container {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: center;
+      }
+
+      .modal-play-container .play-button {
+        width: 48px;
+        height: 48px;
+      }
+
+      .modal-metadata {
+        width: 100%;
+        max-width: 300px;
+        margin: 1rem auto 0;
+      }
+
+      .modal-metadata-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .modal-metadata-label {
+        color: #666;
+        margin-left: 0.5rem;
+        font-weight: 500;
+      }
+
+      .modal-metadata-value {
+        color: #333;
+      }
+
+      #closeModal {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background-color: #f8f9fa;
+        border-radius: 50%;
+        padding: 0.5rem;
+        transition: all 0.2s ease;
+      }
+
+      #closeModal:hover {
+        background-color: #e9ecef;
+        transform: scale(1.1);
+      }
+
+      /* Play button styles - matching main page */
+      .play-button {
+        width: 48px;
+        height: 48px;
+        border-radius: 9999px;
+        background-color: rgba(182,33,38,.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all .3s ease;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0,0,0,.2);
+        z-index: 10;
+      }
+
+      .play-button:hover {
+        background-color: rgba(150,27,31,.95);
+        transform: scale(1.05);
+      }
+
+      .play-button.playing {
+        background-color: rgba(182,33,38,.85);
+      }
+
+      .play-button.playing:hover {
+        background-color: rgba(150,27,31,.95);
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 0 0 rgba(182,33,38,.7); }
+        70% { box-shadow: 0 0 0 10px rgba(182,33,38,0); }
+        100% { box-shadow: 0 0 0 0 rgba(182,33,38,0); }
+      }
+
+      .pulsing {
+        animation: pulse 1.5s infinite;
+      }
+
+      /* Story container positioning */
+      .story-container {
+        position: relative;
+        min-height: 100px;
+        white-space: pre-wrap;
+        text-align: right;
+        line-height: 1.8;
+      }
+
+      /* Responsive media queries */
+      @media (max-width: 1200px) {
+        #storyHistoryGrid {
+          grid-template-columns: repeat(4, 175px) !important;
+        }
+        
+        .col-span-5 {
+          grid-column: 1 / span 4 !important;
+        }
+      }
+      
+      @media (max-width: 900px) {
+        #storyHistoryGrid {
+          grid-template-columns: repeat(3, 175px) !important;
+        }
+        
+        .col-span-5 {
+          grid-column: 1 / span 3 !important;
+        }
+      }
+      
+      @media (min-width: 768px) {
+        .modal-grid {
+          grid-template-columns: 300px 1fr;
+        }
+      }
+      
+      @media (max-width: 767px) {
+        .title-text {
+          font-size: 2rem !important;
+        }
+
+        .modal-content {
+          width: 95%;
+          margin: 10px auto;
+          padding: 1rem;
+        }
+
+        .modal-image-section {
+          max-width: 100%;
+        }
+
+        .modal-image-section img {
+          max-height: 300px;
+          object-fit: contain;
+        }
+
+        .modal-story-section .story-container {
+          padding: 1rem;
+          font-size: 0.95rem;
+        }
+
+        .modal-metadata {
+          max-width: 100%;
+        }
+
+        .modal-metadata-item {
+          flex-direction: column;
+          align-items: flex-start;
+          margin-bottom: 1rem;
+        }
+
+        .modal-metadata-label {
+          margin-bottom: 0.25rem;
+        }
+
+        #closeModal {
+          top: 0.5rem;
+          left: 0.5rem;
+        }
+
+        .modal-play-container {
+          margin-top: 0.5rem;
+        }
+
+        .play-button {
+          width: 40px;
+          height: 40px;
+        }
+      }
+      
+      @media (max-width: 700px) {
+        #storyHistoryGrid {
+          grid-template-columns: repeat(2, 175px) !important;
+        }
+        
+        .col-span-5 {
+          grid-column: 1 / span 2 !important;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .modal-content {
+          width: 100%;
+          margin: 0;
+          min-height: 100vh;
+          border-radius: 0;
+        }
+
+        .modal-image-section img {
+          max-height: 250px;
+        }
+        
+        #storyHistoryGrid {
+          grid-template-columns: repeat(1, 175px) !important;
+        }
+        
+        .col-span-5 {
+          grid-column: 1 !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <div class="title-container">
+        <h1 class="title-text mt-8">أرشيف القصص</h1>
+      </div>
+      
+      <div id="storyHistoryGrid"></div>
+      
+      <div class="pagination" id="pagination"></div>
+      
+      <div class="text-center">
+        <a href="/" class="back-btn">العودة إلى الصفحة الرئيسية</a>
+        
+        <!-- Admin section -->
+        <div class="mt-8 pt-8 border-t border-gray-700 border-opacity-30">
+          <h3 class="text-white text-lg mb-4">إدارة النظام</h3>
+          <div class="flex justify-center gap-4 mb-4">
+            <button id="vacuumDatabaseBtn" class="bg-blue-800 hover:bg-blue-900 text-white font-bold p-3 rounded-full transition duration-300 ease-in-out" title="إصلاح قاعدة البيانات">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Story Modal -->
+    <div id="storyModal" class="modal">
+      <div class="modal-content">
+        <button id="closeModal" class="cursor-pointer">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <div class="modal-grid">
+          <div class="modal-image-section">
+            <img id="modalImage" src="" alt="صورة القصة" />
+            <div class="modal-metadata">
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اسم الطالب:</span>
+                <span id="modalStudentName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اسم المدرسة:</span>
+                <span id="modalSchoolName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">الصف:</span>
+                <span id="modalClassName" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">تاريخ الإنشاء:</span>
+                <span id="modalDate" class="modal-metadata-value"></span>
+              </div>
+              <div class="modal-metadata-item">
+                <span class="modal-metadata-label">اللغة:</span>
+                <span id="modalLanguage" class="modal-metadata-value"></span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-story-section">
+            <div class="story-container" id="modalStory"></div>
+            <div class="modal-play-container">
+              <button id="playStoryBtn" class="play-button">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </button>
+            </div>
+            <audio id="storyAudio" style="display: none;"></audio>
+            
+            <!-- Delete story button -->
+            <div class="mt-4 flex justify-center">
+              <button 
+                id="deleteStoryBtn" 
+                class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition duration-300 ease-in-out flex items-center"
+              >
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+                حذف القصة
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global variables
+      const layoutNumbers = [31, 33, 35, 37, 39, 41, 43, 45, 47, 49, 51, 53, 57, 59, 61];
+      const storyFrames = layoutNumbers.map(num => `/static/website_stories_layout-${num}.png`);
+      
+      let currentPage = 1;
+      const storiesPerPage = 25;
+      let allStories = [];
+      
+      // Fetch stories from API
+      async function fetchStories() {
+        try {
+          const response = await fetch('/story-history?limit=100&include_images=true');
+          if (!response.ok) {
+            throw new Error(`Error: ${response.status} ${response.statusText}`);
+          }
+          const data = await response.json();
+          
+          // Check if server returned a specific error message
+          if (data && data.error) {
+            console.error('Server error:', data.error);
+            showErrorMessage(data.error);
+            return;
+          }
+          
+          // Check if data is an array
+          if (Array.isArray(data)) {
+            allStories = data;
+          } else {
+            // If not an array, initialize as empty array
+            console.warn('Response is not an array:', data);
+            allStories = [];
+          }
+          
+          renderStories();
+          renderPagination();
+        } catch (error) {
+          console.error('Error fetching stories:', error);
+          // Show empty state with placeholder frames
+          allStories = [];
+          renderEmptyState();
+        }
+      }
+      
+      // Show error message
+      function showErrorMessage(message) {
+        const storyGrid = document.getElementById('storyHistoryGrid');
+        storyGrid.innerHTML = '';
+        
+        // Set responsive grid columns based on screen width
+        if (window.innerWidth > 1200) {
+          storyGrid.style.gridTemplateColumns = 'repeat(5, 175px)';
+        } else if (window.innerWidth > 900) {
+          storyGrid.style.gridTemplateColumns = 'repeat(4, 175px)';
+        } else if (window.innerWidth > 700) {
+          storyGrid.style.gridTemplateColumns = 'repeat(3, 175px)';
+        } else if (window.innerWidth > 480) {
+          storyGrid.style.gridTemplateColumns = 'repeat(2, 175px)';
+        } else {
+          storyGrid.style.gridTemplateColumns = 'repeat(1, 175px)';
+        }
+        
+        // Create error message container
+        const errorEl = document.createElement('div');
+        errorEl.className = 'col-span-5 text-center text-white text-xl p-8 mb-8 bg-red-900 bg-opacity-70 rounded-lg';
+        errorEl.style.gridColumn = '1 / -1'; // Span all columns
+        errorEl.innerHTML = `
+          <div class="mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 class="text-2xl font-bold mb-2">خطأ في قاعدة البيانات</h3>
+          <p>${message}</p>
+          <p class="mt-4 text-sm">يرجى الاتصال بمسؤول النظام لحل المشكلة</p>
+        `;
+        storyGrid.appendChild(errorEl);
+        
+        // Hide pagination
+        document.getElementById('pagination').innerHTML = '';
+        
+        // Show button to try again
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'text-center mt-8';
+        
+        const refreshButton = document.createElement('button');
+        refreshButton.className = 'bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-lg transition duration-300';
+        refreshButton.innerHTML = 'محاولة مرة أخرى';
+        refreshButton.onclick = fetchStories;
+        
+        buttonContainer.appendChild(refreshButton);
+        storyGrid.appendChild(buttonContainer);
+      }
+      
+      // Render stories for current page
+      function renderStories() {
+        const storyGrid = document.getElementById('storyHistoryGrid');
+        storyGrid.innerHTML = '';
+        
+        // If no stories, show empty state
+        if (!allStories || allStories.length === 0) {
+          renderEmptyState();
+          return;
+        }
+        
+        const startIndex = (currentPage - 1) * storiesPerPage;
+        const endIndex = Math.min(startIndex + storiesPerPage, allStories.length);
+        const currentPageStories = allStories.slice(startIndex, endIndex);
+        
+        // Update the CSS grid to have 5 columns of fixed width
+        if (window.innerWidth > 1200) {
+          storyGrid.style.gridTemplateColumns = 'repeat(5, 175px)';
+        } else if (window.innerWidth > 900) {
+          storyGrid.style.gridTemplateColumns = 'repeat(4, 175px)';
+        } else if (window.innerWidth > 700) {
+          storyGrid.style.gridTemplateColumns = 'repeat(3, 175px)';
+        } else if (window.innerWidth > 480) {
+          storyGrid.style.gridTemplateColumns = 'repeat(2, 175px)';
+        } else {
+          storyGrid.style.gridTemplateColumns = 'repeat(1, 175px)';
+        }
+        
+        currentPageStories.forEach((story, index) => {
+          // Select a random frame for each story
+          const frameIndex = Math.floor(Math.random() * layoutNumbers.length);
+          const layoutNum = layoutNumbers[frameIndex];
+          
+          const storyEl = document.createElement('div');
+          storyEl.className = 'story-frame';
+          storyEl.dataset.storyId = story.id;
+          storyEl.onclick = () => openStoryModal(story.id);
+          
+          // Get school and student name with fallbacks
+          const schoolName = story.school_name || 'مدرسة التعليم الجديدة';
+          const studentName = story.student_name || 'طالب ميدان الحكاية';
+          
+          // Use the layout structure like in the main page
+          storyEl.innerHTML = `
+            <div class="story-layout-container">
+              <img src="static/website_stories_layout-${layoutNum}.png" class="story-layout-image" alt="Story layout">
+              <div class="story-image-overlay">
+                <img class="story-actual-image" src="data:image/png;base64,${story.image_data}" alt="رسمة قصة">
+              </div>
+              <div class="story-info-overlay">
+                <div class="read-more-btn">اقرأ المزيد</div>
+                <div class="school-info">${schoolName}</div>
+              </div>
+            </div>
+          `;
+          
+          storyGrid.appendChild(storyEl);
+        });
+        
+        // If there are fewer than storiesPerPage stories on the page, add empty frames
+        for (let i = currentPageStories.length; i < storiesPerPage; i++) {
+          // Select a random frame for empty slots
+          const frameIndex = Math.floor(Math.random() * layoutNumbers.length);
+          const layoutNum = layoutNumbers[frameIndex];
+          
+          const emptyFrame = document.createElement('div');
+          emptyFrame.className = 'story-frame';
+          
+          emptyFrame.innerHTML = `
+            <div class="story-layout-container">
+              <img src="static/website_stories_layout-${layoutNum}.png" class="story-layout-image" alt="Story layout">
+              <div class="story-info-overlay">
+                <div class="read-more-btn">قريباً</div>
+                <div class="school-info">ميدان الحكاية</div>
+              </div>
+            </div>
+          `;
+          
+          storyGrid.appendChild(emptyFrame);
+        }
+      }
+      
+      // Render empty state with placeholder frames
+      function renderEmptyState() {
+        const storyGrid = document.getElementById('storyHistoryGrid');
+        storyGrid.innerHTML = '';
+        
+        // Set responsive grid columns based on screen width
+        if (window.innerWidth > 1200) {
+          storyGrid.style.gridTemplateColumns = 'repeat(5, 175px)';
+        } else if (window.innerWidth > 900) {
+          storyGrid.style.gridTemplateColumns = 'repeat(4, 175px)';
+        } else if (window.innerWidth > 700) {
+          storyGrid.style.gridTemplateColumns = 'repeat(3, 175px)';
+        } else if (window.innerWidth > 480) {
+          storyGrid.style.gridTemplateColumns = 'repeat(2, 175px)';
+        } else {
+          storyGrid.style.gridTemplateColumns = 'repeat(1, 175px)';
+        }
+        
+        // Add a message at the top with better styling
+        const messageEl = document.createElement('div');
+        messageEl.className = 'col-span-5 text-center text-white text-2xl p-6 mb-8 bg-black bg-opacity-30 rounded-lg';
+        messageEl.style.gridColumn = '1 / -1'; // Span all columns
+        messageEl.innerHTML = 'لا توجد قصص لعرضها حاليًا <br><span class="text-sm opacity-70">جرب إنشاء قصة جديدة من الصفحة الرئيسية</span>';
+        storyGrid.appendChild(messageEl);
+        
+        // Add empty frames
+        for (let i = 0; i < storiesPerPage; i++) {
+          // Select a random frame for empty slots
+          const frameIndex = Math.floor(Math.random() * layoutNumbers.length);
+          const layoutNum = layoutNumbers[frameIndex];
+          
+          const emptyFrame = document.createElement('div');
+          emptyFrame.className = 'story-frame';
+          
+          emptyFrame.innerHTML = `
+            <div class="story-layout-container">
+              <img src="static/website_stories_layout-${layoutNum}.png" class="story-layout-image" alt="Story layout">
+              <div class="story-info-overlay">
+                <div class="read-more-btn">قريباً</div>
+                <div class="school-info">ميدان الحكاية</div>
+              </div>
+            </div>
+          `;
+          
+          storyGrid.appendChild(emptyFrame);
+        }
+        
+        // Hide pagination
+        document.getElementById('pagination').innerHTML = '';
+      }
+      
+      // Render pagination
+      function renderPagination() {
+        const paginationEl = document.getElementById('pagination');
+        paginationEl.innerHTML = '';
+        
+        // If no stories, hide pagination
+        if (!allStories || allStories.length === 0) {
+          return;
+        }
+        
+        const totalPages = Math.ceil(allStories.length / storiesPerPage);
+        
+        // Only show pagination if we have more than one page
+        if (totalPages <= 1) return;
+        
+        // Previous button
+        if (currentPage > 1) {
+          const prevBtn = document.createElement('div');
+          prevBtn.className = 'page-btn';
+          prevBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>';
+          prevBtn.onclick = () => {
+            currentPage--;
+            renderStories();
+            renderPagination();
+          };
+          paginationEl.appendChild(prevBtn);
+        }
+        
+        // Page numbers
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust if we're at the end
+        if (endPage - startPage + 1 < maxVisiblePages) {
+          startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+          const pageBtn = document.createElement('div');
+          pageBtn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+          pageBtn.textContent = i;
+          pageBtn.onclick = () => {
+            currentPage = i;
+            renderStories();
+            renderPagination();
+          };
+          paginationEl.appendChild(pageBtn);
+        }
+        
+        // Next button
+        if (currentPage < totalPages) {
+          const nextBtn = document.createElement('div');
+          nextBtn.className = 'page-btn';
+          nextBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+          nextBtn.onclick = () => {
+            currentPage++;
+            renderStories();
+            renderPagination();
+          };
+          paginationEl.appendChild(nextBtn);
+        }
+      }
+      
+      // Open story modal
+      async function openStoryModal(storyId) {
+        try {
+          const response = await fetch(`/story/${storyId}`);
+          if (!response.ok) {
+            // Check if it's a 500 error that might contain our custom error message
+            if (response.status === 500) {
+              try {
+                const errorData = await response.json();
+                if (errorData && errorData.error) {
+                  throw new Error(errorData.error);
+                }
+              } catch (jsonError) {
+                // If parsing fails, just use the original error
+              }
+            }
+            throw new Error(`Error: ${response.status} ${response.statusText}`);
+          }
+          
+          const story = await response.json();
+          
+          // Set modal content
+          document.getElementById('modalImage').src = `data:image/png;base64,${story.image_data}`;
+          document.getElementById('modalStudentName').textContent = story.student_name || 'غير متوفر';
+          document.getElementById('modalSchoolName').textContent = story.school_name || 'غير متوفر';
+          document.getElementById('modalClassName').textContent = story.class_name || 'غير متوفر';
+          document.getElementById('modalDate').textContent = formatDate(story.created_at);
+          document.getElementById('modalLanguage').textContent = story.language || 'العربية';
+          document.getElementById('modalStory').textContent = story.story;
+          
+          // Store the story ID in the modal for audio playback and delete functionality
+          document.querySelector('.modal-content').dataset.storyId = storyId;
+          
+          // Show modal
+          const modal = document.getElementById('storyModal');
+          modal.classList.add('active');
+          
+          // Add event listener to close modal
+          document.getElementById('closeModal').onclick = closeModal;
+          
+          // Also close when clicking outside the content
+          modal.onclick = (e) => {
+            if (e.target === modal) {
+              closeModal();
+            }
+          };
+
+          // Setup play button functionality
+          setupAudioPlayer(storyId);
+          
+          // Setup delete button functionality
+          setupDeleteButton(storyId);
+        } catch (error) {
+          console.error('Error fetching story details:', error);
+          
+          // Show error in a dialog
+          const errorMessage = error.message || 'حدث خطأ أثناء جلب تفاصيل القصة';
+          
+          // If it's a disk space error, show a more specific message
+          if (errorMessage.includes('Database storage is full')) {
+            alert(`خطأ في قاعدة البيانات: ${errorMessage}\nيرجى الاتصال بمسؤول النظام لحل المشكلة.`);
+          } else {
+            alert(`حدث خطأ: ${errorMessage}`);
+          }
+        }
+      }
+      
+      // Close modal
+      function closeModal() {
+        const modal = document.getElementById('storyModal');
+        modal.classList.remove('active');
+        
+        // Stop audio if playing
+        const audio = document.getElementById('storyAudio');
+        audio.pause();
+        
+        // Reset play button state
+        const playButton = document.getElementById('playStoryBtn');
+        if (playButton) {
+          playButton.classList.remove('playing', 'pulsing');
+          playButton.innerHTML = `
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          `;
+        }
+      }
+      
+      // Setup audio player
+      function setupAudioPlayer(storyId) {
+        const audio = document.getElementById('storyAudio');
+        const playButton = document.getElementById('playStoryBtn');
+        
+        // Clear previous event listeners
+        const newAudio = audio.cloneNode(true);
+        audio.parentNode.replaceChild(newAudio, audio);
+        
+        // Get the fresh reference
+        const audioElement = document.getElementById('storyAudio');
+        
+        // Set src attribute
+        audioElement.src = `/tts/${storyId}`;
+        
+        // Add event listeners
+        playButton.onclick = function() {
+          if (audioElement.paused) {
+            // Play the audio
+            audioElement.play()
+              .then(() => {
+                // Update button to show it's playing
+                playButton.classList.add('playing', 'pulsing');
+                playButton.innerHTML = `
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m1-10H9a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2z"></path>
+                  </svg>
+                `;
+              })
+              .catch(error => {
+                console.error('Error playing audio:', error);
+                alert('حدث خطأ أثناء تشغيل الصوت');
+              });
+          } else {
+            // Pause the audio
+            audioElement.pause();
+            // Update button to show it's paused
+            playButton.classList.remove('playing', 'pulsing');
+            playButton.innerHTML = `
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            `;
+          }
+        };
+        
+        // Handle audio ended event
+        audioElement.addEventListener('ended', function() {
+          // Reset play button state
+          playButton.classList.remove('playing', 'pulsing');
+          playButton.innerHTML = `
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          `;
+        });
+      }
+      
+      // Setup delete button
+      function setupDeleteButton(storyId) {
+        const deleteButton = document.getElementById('deleteStoryBtn');
+        
+        // Remove previous event listeners
+        const newButton = deleteButton.cloneNode(true);
+        deleteButton.parentNode.replaceChild(newButton, deleteButton);
+        
+        // Get the fresh reference
+        const freshDeleteButton = document.getElementById('deleteStoryBtn');
+        
+        // Add event listener
+        freshDeleteButton.onclick = async function() {
+          // Ask for password
+          const password = prompt('الرجاء إدخال كلمة المرور للحذف:');
+          
+          // Check if password is correct (20252025)
+          if (password !== '20252025') {
+            alert('كلمة المرور غير صحيحة');
+            return;
+          }
+          
+          if (confirm('هل أنت متأكد من حذف هذه القصة؟')) {
+            try {
+              const response = await fetch(`/story/${storyId}`, {
+                method: 'DELETE'
+              });
+              
+              const data = await response.json();
+              
+              if (data.success) {
+                // Close the modal
+                closeModal();
+                
+                // Reload the stories to refresh the list
+                fetchStories();
+                
+                // Show success message
+                alert('تم حذف القصة بنجاح');
+              } else {
+                alert('حدث خطأ أثناء حذف القصة');
+              }
+            } catch (error) {
+              console.error('Error deleting story:', error);
+              alert('حدث خطأ أثناء حذف القصة');
+            }
+          }
+        };
+      }
+      
+      // Format date
+      function formatDate(dateString) {
+        if (!dateString) return 'Unknown';
+        
+        try {
+          const date = new Date(dateString);
+          // Use UAE timezone (Gulf Standard Time, UTC+4)
+          return new Intl.DateTimeFormat('ar-AE', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Dubai'
+          }).format(date);
+        } catch (error) {
+          console.error('Error formatting date:', error);
+          return 'Unknown';
+        }
+      }
+      
+      // Initialize on page load
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('History page loaded. Initializing...');
+        console.log('Story frames paths:', storyFrames);
+        
+        // Test loading of a single frame to verify paths
+        const testImg = new Image();
+        testImg.onload = () => console.log('Test frame loaded successfully!');
+        testImg.onerror = (e) => console.error('Test frame loading failed:', e);
+        testImg.src = storyFrames[0];
+        
+        // Check if background image loaded properly
+        const bgImg = new Image();
+        bgImg.onload = () => console.log('Background image loaded successfully!');
+        bgImg.onerror = (e) => console.error('Background image loading failed:', e);
+        bgImg.src = 'static/history_bg.png';
+        
+        // Set up vacuum database button
+        const vacuumDatabaseBtn = document.getElementById('vacuumDatabaseBtn');
+        if (vacuumDatabaseBtn) {
+          vacuumDatabaseBtn.addEventListener('click', vacuumDatabase);
+        }
+        
+        // Add window resize listener to update grid layout
+        window.addEventListener('resize', function() {
+          // Only update if we have stories loaded
+          if (allStories && allStories.length > 0) {
+            renderStories();
+            renderPagination();
+          } else {
+            renderEmptyState();
+          }
+        });
+        
+        fetchStories();
+      });
+      
+      // Vacuum database function
+      async function vacuumDatabase() {
+        if (!confirm('هل تريد إجراء صيانة لقاعدة البيانات؟ قد تستغرق هذه العملية بعض الوقت.')) {
+          return;
+        }
+        
+        // Ask for password
+        const password = prompt('الرجاء إدخال كلمة المرور للمتابعة:');
+        
+        // Check if password is correct (8520)
+        if (password !== '8520') {
+          alert('كلمة المرور غير صحيحة');
+          return;
+        }
+        
+        try {
+          // Show loading state
+          const btn = document.getElementById('vacuumDatabaseBtn');
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = 'جاري إصلاح قاعدة البيانات...';
+          
+          const response = await fetch('/admin/vacuum-database');
+          const data = await response.json();
+          
+          if (response.ok && data.success) {
+            // Success
+            alert('تمت صيانة قاعدة البيانات بنجاح');
+            // Refresh the page
+            window.location.reload();
+          } else {
+            // Error
+            const errorMsg = data.error || 'حدث خطأ أثناء صيانة قاعدة البيانات';
+            alert(`فشل: ${errorMsg}`);
+          }
+        } catch (error) {
+          console.error('Error vacuuming database:', error);
+          alert('حدث خطأ أثناء الاتصال بالخادم');
+        } finally {
+          // Reset button state
+          const btn = document.getElementById('vacuumDatabaseBtn');
+          btn.disabled = false;
+          btn.textContent = 'إصلاح قاعدة البيانات';
+        }
+      }
+
+      // Update modal content with story details
+      async function updateStoryModal(story) {
+        const modalContent = document.getElementById('storyContent');
+        
+        // Set image
+        const modalImage = document.getElementById('storyImage');
+        modalImage.src = `data:image/png;base64,${story.image_data}`;
+        
+        // Set story metadata
+        const storyInfo = document.getElementById('storyInfo');
+        storyInfo.innerHTML = `
+          <div class="mb-3">
+            <span class="font-bold text-lg ml-2">اسم الطالب:</span>
+            <span class="text-lg">${story.student_name || 'غير متوفر'}</span>
+          </div>
+          <div class="mb-3">
+            <span class="font-bold text-lg ml-2">اسم المدرسة:</span>
+            <span class="text-lg">${story.school_name || 'غير متوفر'}</span>
+          </div>
+          <div class="mb-3">
+            <span class="font-bold text-lg ml-2">الصف:</span>
+            <span class="text-lg">${story.class_name || 'غير متوفر'}</span>
+          </div>
+          <div>
+            <span class="font-bold text-lg ml-2">اللغة:</span>
+            <span class="text-lg">${story.language === 'Arabic' ? 'العربية' : 'English'}</span>
+          </div>
+        `;
+      }
+    </script>
+  </body>
+</html> 
