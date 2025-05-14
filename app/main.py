@@ -5,7 +5,7 @@ from typing import List, Optional
 from sqlalchemy import Table, Column, String, MetaData, select, text, desc
 
 from dbos import DBOS
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
