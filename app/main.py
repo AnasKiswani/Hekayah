@@ -16,7 +16,7 @@ from fastapi import FastAPI, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 from typing import List
-
+from .database import engine,SessionLocal
 
 
 load_dotenv()
@@ -225,7 +225,12 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
         DBOS.logger.error(f"Error retrieving story history: {str(e)}")
         # Return empty list on error instead of failing
         return []
-
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 @app.get("/story-history")
 def story_history_endpoint(
     limit: int = Query(10, ge=1, le=100),
