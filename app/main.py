@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import create_engine, Table, Column, String, MetaData, select, desc, DateTime, func
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -44,7 +44,7 @@ stories_table = Table(
     Column("class_name", String)
 )
 
-# --- FastAPI Lifespan for DB Initialization ---
+# --- FastAPI Lifespan ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Application startup: Creating database tables if they don't exist...")
@@ -58,13 +58,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Mount static files directory
+# Mount static files
 app.mount("/static", StaticFiles(directory="html"), name="static")
 
-# Initialize OpenAI client
+# OpenAI Client
 client = OpenAI()
 
-# --- System Prompt for GPT ---
+# --- System Message ---
 system_message = """You are a helpful assistant tasked with analyzing traditional Emirati children's drawings.
 These drawings capture elements of the rich cultural heritage, local traditions, and daily life of the UAE as interpreted by children.
 Your role is to create a cohesive, imaginative story inspired by the visuals. The story should reflect the cultural significance of the elements in the drawings while maintaining a sense of wonder and adventure appropriate for children.
@@ -78,7 +78,7 @@ Ensure the narrative is engaging, fun, and educational, incorporating aspects of
 - Ensure the story uses proper {language} grammar and vocabulary.
 """
 
-# --- DB Dependency ---
+# --- Dependencies ---
 def get_db():
     db = SessionLocal()
     try:
@@ -86,11 +86,10 @@ def get_db():
     finally:
         db.close()
 
-# --- Helpers ---
 def encode_image(image_data):
     return base64.b64encode(image_data).decode("utf-8")
 
-# --- DB Functions ---
+# --- Database Functions ---
 def save_story_db(db: Session, story_id: str, image_data: str, keywords: str, story_content: str, language: str,
                   student_name: str = "", school_name: str = "", class_name: str = "") -> None:
     try:
@@ -106,10 +105,8 @@ def save_story_db(db: Session, story_id: str, image_data: str, keywords: str, st
         )
         db.execute(ins)
         db.commit()
-        logger.info(f"Story saved with ID: {story_id}")
     except Exception as e:
         db.rollback()
-        logger.error(f"Error saving story to DB: {str(e)}")
         raise
 
 def save_audio_data_db(db: Session, story_id: str, audio_data: bytes) -> None:
@@ -126,54 +123,48 @@ def save_audio_data_db(db: Session, story_id: str, audio_data: bytes) -> None:
 
 def get_story_history_db(db: Session, limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
     try:
-        columns_to_select = [
+        columns = [
             stories_table.c.id, stories_table.c.keywords,
             stories_table.c.created_at, stories_table.c.language,
             stories_table.c.student_name, stories_table.c.school_name, stories_table.c.class_name
         ]
         if include_images:
-            columns_to_select.insert(2, stories_table.c.image_data)
+            columns.insert(2, stories_table.c.image_data)
 
-        query = select(*columns_to_select).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
+        query = select(*columns).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
         result_proxy = db.execute(query)
-
-        story_list = []
-        for row in result_proxy.fetchall():
-            story_dict = {
+        return [
+            {
                 "id": row.id,
                 "keywords": row.keywords,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "language": row.language or "Arabic",
+                "language": row.language,
                 "student_name": row.student_name or "",
                 "school_name": row.school_name or "",
-                "class_name": row.class_name or ""
+                "class_name": row.class_name or "",
+                **({"image_data": row.image_data} if include_images else {})
             }
-            if include_images:
-                story_dict["image_data"] = row.image_data
-            story_list.append(story_dict)
-        return story_list
+            for row in result_proxy.fetchall()
+        ]
     except Exception as e:
-        logger.error(f"Error retrieving story history from DB: {str(e)}")
-        return []
+        raise
 
 def get_story_by_id_db(db: Session, story_id: str, include_audio: bool = False) -> Optional[dict]:
     try:
-        columns_to_select = [
+        columns = [
             stories_table.c.id, stories_table.c.image_data, stories_table.c.keywords,
             stories_table.c.story, stories_table.c.created_at, stories_table.c.language,
             stories_table.c.student_name, stories_table.c.school_name, stories_table.c.class_name
         ]
         if include_audio:
-            columns_to_select.append(stories_table.c.audio_data)
+            columns.append(stories_table.c.audio_data)
 
-        query = select(*columns_to_select).where(stories_table.c.id == story_id)
-        result_proxy = db.execute(query)
-        row = result_proxy.first()
-
+        query = select(*columns).where(stories_table.c.id == story_id)
+        row = db.execute(query).first()
         if not row:
             return None
 
-        story_dict = {
+        data = {
             "id": row.id,
             "image_data": row.image_data,
             "keywords": row.keywords,
@@ -185,45 +176,39 @@ def get_story_by_id_db(db: Session, story_id: str, include_audio: bool = False) 
             "class_name": row.class_name or ""
         }
         if include_audio:
-            story_dict["audio_data"] = row.audio_data
-        return story_dict
+            data["audio_data"] = row.audio_data
+        return data
     except Exception as e:
-        logger.error(f"Error retrieving story by ID ({story_id}) from DB: {str(e)}")
         raise
 
 def delete_story_by_id_db(db: Session, story_id: str) -> bool:
     try:
-        dele = stories_table.delete().where(stories_table.c.id == story_id)
-        result = db.execute(dele)
+        result = db.execute(stories_table.delete().where(stories_table.c.id == story_id))
         db.commit()
         return result.rowcount > 0
     except Exception as e:
         db.rollback()
         raise
 
-# --- API Endpoints ---
-@app.get("/")
+# --- Routes ---
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    return {"message": "Welcome to the Hekayah API. Visit /story-history to view stories."}
+    return JSONResponse(content={"message": "Welcome to the Hekayah API. Visit /story-history to view stories."})
 
 @app.get("/story-history")
-def story_history_endpoint(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
-                           include_images: bool = Query(True), db: Session = Depends(get_db)):
-    try:
-        return get_story_history_db(db, limit, offset, include_images)
-    except Exception as e:
-        logger.error(f"Error in story-history endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error retrieving story history")
+def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
+                  include_images: bool = Query(True), db: Session = Depends(get_db)):
+    return get_story_history_db(db, limit, offset, include_images)
 
 @app.get("/story/{story_id}")
-def get_story_endpoint(story_id: str, include_audio: bool = Query(False), db: Session = Depends(get_db)):
-    story_data = get_story_by_id_db(db, story_id, include_audio)
-    if not story_data:
+def get_story(story_id: str, include_audio: bool = Query(False), db: Session = Depends(get_db)):
+    story = get_story_by_id_db(db, story_id, include_audio)
+    if not story:
         raise HTTPException(status_code=404, detail="Story not found")
-    return story_data
+    return story
 
 @app.post("/analyze-image")
-async def analyze_image_endpoint(
+async def analyze_image(
     image: UploadFile = File(...),
     keywords: str = Form(...),
     language: str = Form("Arabic"),
@@ -232,55 +217,43 @@ async def analyze_image_endpoint(
     class_name: str = Form(""),
     db: Session = Depends(get_db)
 ):
-    try:
-        if not image.content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="Uploaded file is not an image")
+    if not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid image format")
 
-        image_data = await image.read()
-        if not image_data:
-            raise HTTPException(status_code=400, detail="Empty image file")
+    image_data = await image.read()
+    if not image_data:
+        raise HTTPException(status_code=400, detail="Empty image")
 
-        base64_image = encode_image(image_data)
-        formatted_system_message = system_message.format(language=language)
+    base64_img = encode_image(image_data)
+    msg = system_message.format(language=language)
 
-        completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": formatted_system_message},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"The keywords are: {keywords}\n\n and here's the drawing:" if keywords else "Here's the drawing:"},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{image.content_type};base64,{base64_image}",
-                                "detail": "high",
-                            },
-                        },
-                    ],
-                }
-            ],
-        )
+    completion = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": msg},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"The keywords are: {keywords}\n\n and here's the drawing:" if keywords else "Here's the drawing:"},
+                    {"type": "image_url", "image_url": {"url": f"data:{image.content_type};base64,{base64_img}", "detail": "high"}}
+                ]
+            }
+        ],
+    )
 
-        story_content = completion.choices[0].message.content
-        story_id = str(uuid.uuid4())
-        save_story_db(db, story_id, base64_image, keywords, story_content, language, student_name, school_name, class_name)
-
-        return {"story": story_content, "id": story_id}
-    except Exception as e:
-        logger.error(f"Error in analyze_image: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error processing image and generating story.")
+    story_content = completion.choices[0].message.content
+    story_id = str(uuid.uuid4())
+    save_story_db(db, story_id, base64_img, keywords, story_content, language, student_name, school_name, class_name)
+    return {"story": story_content, "id": story_id}
 
 @app.delete("/story/{story_id}")
-def delete_story_endpoint(story_id: str, db: Session = Depends(get_db)):
-    success = delete_story_by_id_db(db, story_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Story not found or could not be deleted")
-    return {"message": "Story deleted successfully", "id": story_id}
+def delete_story(story_id: str, db: Session = Depends(get_db)):
+    if not delete_story_by_id_db(db, story_id):
+        raise HTTPException(status_code=404, detail="Story not found")
+    return {"message": "Deleted successfully", "id": story_id}
 
-# --- Run Locally ---
+# --- Run Server Locally ---
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting Uvicorn server at http://localhost:8000")
+    logger.info("Running server at http://localhost:8000")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
