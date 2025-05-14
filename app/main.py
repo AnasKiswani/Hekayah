@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import create_engine, Table, Column, String, MetaData, select, desc, DateTime, func
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="html"), name="static")  # serves /static/* from html/
+app.mount("/static", StaticFiles(directory="html"), name="static")
 
 client = OpenAI()
 
@@ -76,9 +76,13 @@ def encode_image(image_data):
     return base64.b64encode(image_data).decode("utf-8")
 
 # --- Routes ---
-@app.get("/", response_class=FileResponse)
+@app.api_route("/", methods=["GET", "HEAD"])
 async def serve_homepage():
-    return FileResponse("html/app.html")  # Make sure this file exists
+    return FileResponse("html/app.html")
+
+@app.get("/history", include_in_schema=False)
+async def redirect_history():
+    return RedirectResponse(url="/")
 
 @app.get("/story-history")
 def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
@@ -210,7 +214,7 @@ def delete_story(story_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- Dev Run ---
+# --- Dev Server Run ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
