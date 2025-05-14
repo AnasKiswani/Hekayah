@@ -113,6 +113,10 @@ def enforce_story_limit(max_stories: int = 20) -> None:
                 )
             
             DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
+    except OpenAIError as e:
+        logger.error(f"OpenAI API error: {e}")
+        raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
+
     except Exception as e:
         DBOS.logger.error(f"Error enforcing story limit: {str(e)}")
         # Don't raise the exception to avoid disrupting the main story saving process
