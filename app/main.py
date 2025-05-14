@@ -136,6 +136,15 @@ def save_audio_data(story_id: str, audio_data: bytes) -> None:
 
 # Database transaction to get story history with pagination support
 @DBOS.transaction()
+
+# --- Dependency to get DB session ---
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
     try:
         # Query with pagination and optional image data
