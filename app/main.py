@@ -113,11 +113,7 @@ def enforce_story_limit(max_stories: int = 20) -> None:
                 )
             
             DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         DBOS.logger.error(f"Error enforcing story limit: {str(e)}")
         # Don't raise the exception to avoid disrupting the main story saving process
         pass
@@ -177,11 +173,7 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
                 "school_name": row[5] or "",
                 "class_name": row[6] or ""
             } for row in result]
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         DBOS.logger.error(f"Error retrieving story history: {str(e)}")
         # Return empty list on error instead of failing
         return []
@@ -207,11 +199,7 @@ def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, g
             return []
             
         return stories
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         # Log the error with details
         error_message = str(e)
         DBOS.logger.error(f"Error in story-history endpoint: {error_message}")
@@ -281,11 +269,7 @@ def get_story(story_id: str, include_audio: bool = Query(False)):
     except HTTPException:
         # Re-raise HTTP exceptions like 404
         raise
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         # Log the error
         error_message = str(e)
         DBOS.logger.error(f"Error in get_story endpoint: {error_message}")
@@ -335,11 +319,7 @@ async def analyze_image(
                     status_code=400,
                     content={"error": "Empty image file"}
                 )
-        except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+        except Exception as e:
             DBOS.logger.error(f"Error reading image: {str(e)}")
             return JSONResponse(
                 status_code=400,
@@ -349,11 +329,7 @@ except Exception as e:
         # Encode the image to base64
         try:
             base64_image = encode_image(image_data)
-        except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+        except Exception as e:
             DBOS.logger.error(f"Error encoding image: {str(e)}")
             return JSONResponse(
                 status_code=500,
@@ -389,11 +365,7 @@ except Exception as e:
             )
             
             story = completion.choices[0].message.content
-        except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+        except Exception as e:
             DBOS.logger.error(f"OpenAI API error: {str(e)}")
             return JSONResponse(
                 status_code=503,
@@ -406,11 +378,7 @@ except Exception as e:
         # Save the story to the database
         try:
             direct_save_story(story_id, base64_image, keywords, story, language, student_name, school_name, class_name)
-        except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+        except Exception as e:
             error_message = str(e)
             DBOS.logger.error(f"Error saving story: {error_message}")
             
@@ -429,11 +397,7 @@ except Exception as e:
         
         # Return the generated story and its ID
         return {"story": story, "id": story_id}
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         # Catch all other exceptions
         DBOS.logger.error(f"Unexpected error in analyze_image: {str(e)}")
         return JSONResponse(
@@ -450,11 +414,7 @@ def delete_story(story_id: str):
         if not success:
             return {"success": False, "error": "Story not found"}
         return {"success": True}
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         # Log the error
         error_message = str(e)
         DBOS.logger.error(f"Error in delete_story endpoint: {error_message}")
@@ -488,11 +448,7 @@ def text_to_speech(story_id: str):
                     content=audio_bytes,
                     media_type="audio/mpeg"
                 )
-            except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+            except Exception as e:
                 DBOS.logger.error(f"Error decoding stored audio: {str(e)}")
                 # Fall through to regenerate audio if there's an error
         
@@ -525,22 +481,14 @@ except Exception as e:
                 content=audio_data,
                 media_type="audio/mpeg"
             )
-        except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+        except Exception as e:
             DBOS.logger.error(f"TTS error: {str(e)}")
             raise HTTPException(status_code=500, detail=f"TTS service error: {str(e)}")
             
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         # Log the error
         error_message = str(e)
         DBOS.logger.error(f"Error in text_to_speech endpoint: {error_message}")
@@ -577,11 +525,7 @@ def delete_all_stories() -> int:
             stories.delete()
         )
         return result.rowcount
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         DBOS.logger.error(f"Error deleting all stories: {str(e)}")
         raise
 
@@ -601,11 +545,7 @@ def clear_database():
         
         DBOS.logger.info(f"Successfully enforced 20-story limit, current count: {count_result}")
         return {"success": True, "message": f"Enforced 20-story limit. Database now contains the most recent stories."}
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         error_message = str(e)
         DBOS.logger.error(f"Error enforcing story limit: {error_message}")
         
@@ -665,11 +605,7 @@ def vacuum_database():
         finally:
             conn.close()
             
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         error_message = str(e)
         DBOS.logger.error(f"Error vacuuming database: {error_message}")
         return JSONResponse(
@@ -719,9 +655,9 @@ def direct_save_story(story_id: str, image_data: str, keywords: str, story: str,
                 count_result = cur.fetchone()[0]
                 
                 # If we have more than 20 stories, delete the oldest ones
-                if count_result > 200:
+                if count_result > 20:
                     # Calculate how many stories need to be deleted
-                    stories_to_delete = count_result - 200
+                    stories_to_delete = count_result - 20
                     
                     # Find the IDs of the oldest stories
                     cur.execute(
@@ -742,10 +678,6 @@ def direct_save_story(story_id: str, image_data: str, keywords: str, story: str,
                     
                     DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
         
-    except OpenAIError as e:
-    logger.error(f"OpenAI API error: {e}")
-    raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
-
-except Exception as e:
+    except Exception as e:
         DBOS.logger.error(f"Error saving story: {str(e)}")
         raise
