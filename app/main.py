@@ -61,7 +61,15 @@ Ensure the narrative is engaging, fun, and educational, incorporating aspects of
 - Ensure the story uses proper {language} grammar and vocabulary.
 
 """
+# Define get_db here for reuse
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
 def get_story_history_db(
     db: Session,
     limit: int = 10,
@@ -225,12 +233,6 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
         DBOS.logger.error(f"Error retrieving story history: {str(e)}")
         # Return empty list on error instead of failing
         return []
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 @app.get("/story-history")
 def story_history_endpoint(
     limit: int = Query(10, ge=1, le=100),
