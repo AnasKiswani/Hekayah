@@ -16,6 +16,13 @@ from pyt2s.services import stream_elements
 
 load_dotenv()
 
+# --- Database Setup ---
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/db_name")
+if DATABASE_URL == "postgresql://user:password@localhost/db_name":
+    print("WARNING: DATABASE_URL not set, using default local placeholder")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 # Initialize Maydan Al Hekayah application with DBOS and FastAPI
 app = FastAPI()
 DBOS(fastapi=app)
