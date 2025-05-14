@@ -16,7 +16,7 @@ from fastapi import FastAPI, Query, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 from typing import List
-from .database import engine,SessionLocal
+
 
 
 load_dotenv()
