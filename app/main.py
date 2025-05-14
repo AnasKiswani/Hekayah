@@ -1,76 +1,46 @@
 import os
 import base64
 import uuid
-import logging
 from typing import List, Optional
-from contextlib import asynccontextmanager
-from datetime import datetime
+from sqlalchemy import Table, Column, String, MetaData, select, text, desc
 
-from sqlalchemy import create_engine, Table, Column, String, MetaData, select, desc, DateTime, func, text
-from sqlalchemy.orm import sessionmaker, Session
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
-from fastapi.responses import JSONResponse, FileResponse # Added FileResponse
+from dbos import DBOS
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI, APIError as OpenAI_APIError # Renamed to avoid conflict if user has local APIError
+from openai import OpenAI
 from dotenv import load_dotenv
+from pyt2s.services import stream_elements
 
 load_dotenv()
 
-# --- Logging Setup ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize Maydan Al Hekayah application with DBOS and FastAPI
+app = FastAPI()
+DBOS(fastapi=app)
 
-# --- Database Setup ---
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/db_name")
-if DATABASE_URL == "postgresql://user:password@localhost/db_name":
-    logger.warning("DATABASE_URL environment variable not set, using default local placeholder. Ensure it's set in your Render environment.")
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-metadata = MetaData()
-
-# Define database table schema
-stories_table = Table(
-    "stories",
-    metadata,
-    Column("id", String, primary_key=True),
-    Column("image_data", String), # Consider TEXT type for large base64 strings if issues arise
-    Column("keywords", String),
-    Column("story", String), # Consider TEXT type for long stories
-    Column("created_at", DateTime, default=func.now(), server_default=func.now()),
-    Column("language", String),
-    Column("audio_data", String, nullable=True), # Consider TEXT type, make nullable if not always present
-    Column("student_name", String, nullable=True),
-    Column("school_name", String, nullable=True),
-    Column("class_name", String, nullable=True)
-)
-
-# --- FastAPI Lifespan for DB Initialization ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("Application startup: Creating database tables if they don't exist...")
-    try:
-        metadata.create_all(bind=engine)
-        logger.info("Database tables checked/created.")
-    except Exception as e:
-        logger.error(f"Error creating database tables: {e}")
-        # Depending on policy, you might want to raise this or handle it
-    yield
-    logger.info("Application shutdown.")
-
-app = FastAPI(lifespan=lifespan)
-
-# Mount static files directory (assuming 'html' is at the project root where uvicorn runs)
-# This needs to be relative to the directory where uvicorn is started.
-# If your Procfile is `web: uvicorn app.main:app ...` and main.py is in `app/`,
-# and `html/` is at the project root (sibling to `app/`), then the path for StaticFiles
-# should be relative from the project root, so `directory="html"` is correct if uvicorn runs from project root.
+# Mount static files directory to serve images
 app.mount("/static", StaticFiles(directory="html"), name="static")
 
-# Initialize OpenAI client (API key from OPENAI_API_KEY env var)
+# Initialize OpenAI client
 client = OpenAI()
 
-# --- System Message for OpenAI ---
+# Define database table schema
+stories = Table(
+    "stories", 
+    MetaData(), 
+    Column("id", String, primary_key=True),
+    Column("image_data", String),
+    Column("keywords", String),
+    Column("story", String),
+    Column("created_at", String),
+    Column("language", String),
+    Column("audio_data", String),
+    Column("student_name", String),
+    Column("school_name", String),
+    Column("class_name", String)
+)
+
+# Define the system message for OpenAI
 system_message = """You are a helpful assistant tasked with analyzing traditional Emirati children's drawings.
 These drawings capture elements of the rich cultural heritage, local traditions, and daily life of the UAE as interpreted by children.
 Your role is to create a cohesive, imaginative story inspired by the visuals. The story should reflect the cultural significance of the elements in the drawings while maintaining a sense of wonder and adventure appropriate for children.
@@ -85,257 +55,633 @@ Ensure the narrative is engaging, fun, and educational, incorporating aspects of
 
 """
 
-# --- Dependency to get DB session ---
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# --- Helper Functions ---
+# Helper function to encode image to base64
 def encode_image(image_data):
     return base64.b64encode(image_data).decode("utf-8")
 
-# --- Database Operations (Refactored) ---
-def save_story_db(db: Session, story_id: str, image_data: str, keywords: str, story_content: str, language: str,
-                  student_name: Optional[str] = None, school_name: Optional[str] = None, class_name: Optional[str] = None) -> None:
-    try:
-        ins = stories_table.insert().values(
+# Database transaction to save a story
+@DBOS.transaction()
+def save_story(story_id: str, image_data: str, keywords: str, story: str, language: str, 
+               student_name: str = "", school_name: str = "", class_name: str = "") -> None:
+    # Get current timestamp in ISO format
+    timestamp = text("NOW()")
+    
+    # Insert the new story
+    DBOS.sql_session.execute(
+        stories.insert().values(
             id=story_id,
             image_data=image_data,
             keywords=keywords,
-            story=story_content,
-            # created_at is handled by default=func.now()
+            story=story,
+            created_at=timestamp,
             language=language,
             student_name=student_name,
             school_name=school_name,
             class_name=class_name
         )
-        db.execute(ins)
-        db.commit()
-        logger.info(f"Story saved with ID: {story_id}")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error saving story to DB (ID: {story_id}): {str(e)}")
-        raise # Re-raise the exception to be handled by the endpoint
+    )
+    
+    # Enforce 20-story limit with FIFO (delete the oldest stories if exceeding the limit)
+    enforce_story_limit()
 
-def save_audio_data_db(db: Session, story_id: str, audio_data: bytes) -> None:
+# Database transaction to enforce a 20-story limit
+@DBOS.transaction()
+def enforce_story_limit(max_stories: int = 20) -> None:
     try:
-        audio_data_b64 = base64.b64encode(audio_data).decode("utf-8")
-        upd = stories_table.update().where(stories_table.c.id == story_id).values(audio_data=audio_data_b64)
-        result = db.execute(upd)
-        db.commit()
-        if result.rowcount == 0:
-            logger.warning(f"Attempted to save audio for non-existent story ID: {story_id}")
-            raise HTTPException(status_code=404, detail=f"Story with ID {story_id} not found to save audio for.")
-        logger.info(f"Audio data saved for story ID: {story_id}")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error saving audio data to DB for story ID {story_id}: {str(e)}")
-        raise
+        # Count the total number of stories
+        count_result = DBOS.sql_session.execute(
+            select([text("COUNT(*)")]).select_from(stories)
+        ).scalar()
+        
+        # If we have more than the maximum allowed stories
+        if count_result > max_stories:
+            # Calculate how many stories need to be deleted
+            stories_to_delete = count_result - max_stories
+            
+            # Get the IDs of the oldest stories that need to be deleted
+            oldest_stories = DBOS.sql_session.execute(
+                select([stories.c.id])
+                .order_by(stories.c.created_at)
+                .limit(stories_to_delete)
+            ).fetchall()
+            
+            # Delete each of the oldest stories
+            for story_row in oldest_stories:
+                DBOS.logger.info(f"FIFO limit: Deleting old story with ID: {story_row[0]}")
+                DBOS.sql_session.execute(
+                    stories.delete().where(stories.c.id == story_row[0])
+                )
+            
+            DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
+    except OpenAIError as e:
+        logger.error(f"OpenAI API error: {e}")
+        raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
 
-def get_story_history_db(db: Session, limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
+    except Exception as e:
+        DBOS.logger.error(f"Error enforcing story limit: {str(e)}")
+        # Don't raise the exception to avoid disrupting the main story saving process
+        pass
+
+# Database transaction to save audio data for a story
+@DBOS.transaction()
+def save_audio_data(story_id: str, audio_data: bytes) -> None:
+    # Encode audio data as base64
+    audio_data_b64 = base64.b64encode(audio_data).decode("utf-8")
+    
+    DBOS.sql_session.execute(
+        stories.update()
+        .where(stories.c.id == story_id)
+        .values(audio_data=audio_data_b64)
+    )
+
+# Database transaction to get story history with pagination support
+@DBOS.transaction()
+def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
     try:
-        columns_to_select = [
-            stories_table.c.id, stories_table.c.keywords,
-            stories_table.c.created_at, stories_table.c.language,
-            stories_table.c.student_name, stories_table.c.school_name, stories_table.c.class_name
-        ]
+        # Query with pagination and optional image data
         if include_images:
-            columns_to_select.insert(2, stories_table.c.image_data) # Insert image_data at the correct position
-
-        query = select(*columns_to_select).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
-        result_proxy = db.execute(query)
-        
-        story_list = []
-        # Using .mappings().all() can be cleaner for converting rows to dicts
-        for row_mapping in result_proxy.mappings().all():
-            row_dict = dict(row_mapping)
-            # Ensure created_at is ISO format string if it exists
-            if row_dict.get("created_at") and isinstance(row_dict["created_at"], datetime):
-                 row_dict["created_at"] = row_dict["created_at"].isoformat()
-            row_dict.setdefault("language", "Arabic") # Ensure language has a default
-            story_list.append(row_dict)
-        return story_list
+            result = DBOS.sql_session.execute(
+                select(stories.c.id, stories.c.keywords, stories.c.image_data, stories.c.created_at, stories.c.language, 
+                       stories.c.student_name, stories.c.school_name, stories.c.class_name)
+                .order_by(desc(stories.c.created_at))
+                .limit(limit).offset(offset)
+            ).fetchall()
+            
+            # Return data including image_data
+            return [{
+                "id": row[0], 
+                "keywords": row[1], 
+                "image_data": row[2], 
+                "created_at": row[3], 
+                "language": row[4] or "Arabic",
+                "student_name": row[5] or "",
+                "school_name": row[6] or "",
+                "class_name": row[7] or ""
+            } for row in result]
+        else:
+            # Query without image data to reduce payload size
+            result = DBOS.sql_session.execute(
+                select(stories.c.id, stories.c.keywords, stories.c.created_at, stories.c.language,
+                       stories.c.student_name, stories.c.school_name, stories.c.class_name)
+                .order_by(desc(stories.c.created_at))
+                .limit(limit).offset(offset)
+            ).fetchall()
+            
+            # Return minimal data without images
+            return [{
+                "id": row[0], 
+                "keywords": row[1], 
+                "created_at": row[2], 
+                "language": row[3] or "Arabic",
+                "student_name": row[4] or "",
+                "school_name": row[5] or "",
+                "class_name": row[6] or ""
+            } for row in result]
     except Exception as e:
-        logger.error(f"Error retrieving story history from DB: {str(e)}")
-        # It's better to raise the error to the endpoint to return a 500, rather than an empty list on error.
-        raise
+        DBOS.logger.error(f"Error retrieving story history: {str(e)}")
+        # Return empty list on error instead of failing
+        return []
 
-def get_story_by_id_db(db: Session, story_id: str, include_audio: bool = False) -> Optional[dict]:
-    try:
-        columns_to_select = [
-            stories_table.c.id, stories_table.c.image_data, stories_table.c.keywords,
-            stories_table.c.story, stories_table.c.created_at, stories_table.c.language,
-            stories_table.c.student_name, stories_table.c.school_name, stories_table.c.class_name
-        ]
-        if include_audio:
-            columns_to_select.append(stories_table.c.audio_data)
-
-        query = select(*columns_to_select).where(stories_table.c.id == story_id)
-        result_proxy = db.execute(query)
-        row_mapping = result_proxy.mappings().first() # .first() returns one or None
-
-        if not row_mapping:
-            return None
-        
-        row_dict = dict(row_mapping)
-        if row_dict.get("created_at") and isinstance(row_dict["created_at"], datetime):
-            row_dict["created_at"] = row_dict["created_at"].isoformat()
-        return row_dict
-    except Exception as e:
-        logger.error(f"Error retrieving story by ID ({story_id}) from DB: {str(e)}")
-        raise
-
-def delete_story_by_id_db(db: Session, story_id: str) -> bool:
-    try:
-        dele = stories_table.delete().where(stories_table.c.id == story_id)
-        result = db.execute(dele)
-        db.commit()
-        return result.rowcount > 0
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Error deleting story ID ({story_id}) from DB: {str(e)}")
-        raise
-
-# --- API Endpoints (Refactored) ---
-
-# Endpoint to serve app.html from the root path
-@app.get("/", response_class=FileResponse)
-async def read_index():
-    # Assumes 'html' folder is at the project root, and uvicorn runs from project root.
-    return "html/app.html"
-
+# Endpoint to get story history
 @app.get("/story-history")
-def story_history_endpoint(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
-                           include_images: bool = Query(True), db: Session = Depends(get_db)):
-    # Input validation for limit/offset is good, already present in original.
-    # The original code had some logic to default limit/offset if out of bounds, which is fine.
-    # if limit < 1: limit = 10 # This logic is not standard, Query(ge=1) handles it.
-    # elif limit > 100: limit = 100
-    # if offset < 0: offset = 0
+def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(True)):
     try:
-        stories_list = get_story_history_db(db, limit=limit, offset=offset, include_images=include_images)
-        return stories_list
+        # Ensure limit is within valid range
+        if limit < 1:
+            limit = 10
+        elif limit > 100:
+            limit = 100
+            
+        # Ensure offset is non-negative
+        if offset < 0:
+            offset = 0
+            
+        stories = get_story_history(limit=limit, offset=offset, include_images=include_images)
+        
+        # Return empty list if no stories found
+        if stories is None:
+            return []
+            
+        return stories
     except Exception as e:
-        logger.error(f"Error in story-history endpoint: {str(e)}")
-        # Check for specific DB errors if needed, e.g., disk space, but generic 500 is okay.
-        # The original code had specific handling for "No space left on device", which is good practice
-        # but requires parsing the error string. For now, a generic 500.
-        if "No space left on device" in str(e):
-             logger.critical(f"DATABASE ERROR: No space left on device. {e}")
-             raise HTTPException(status_code=503, detail="Database storage is full. Please contact the administrator.")
-        raise HTTPException(status_code=500, detail="Internal server error retrieving story history.")
+        # Log the error with details
+        error_message = str(e)
+        DBOS.logger.error(f"Error in story-history endpoint: {error_message}")
+        
+        # Check if it's a disk space error
+        if "No space left on device" in error_message:
+            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            # Return a more specific error for disk space issues
+            return {"error": "Database storage is full. Please contact the administrator."}
+        
+        # For other errors, return an empty list instead of error
+        return []
 
+# Database transaction to get a specific story by ID
+@DBOS.transaction()
+def get_story_by_id(story_id: str, include_audio: bool = False) -> Optional[dict]:
+    if include_audio:
+        row = DBOS.sql_session.execute(
+            select(stories).where(stories.c.id == story_id)
+        ).first()
+    else:
+        # Exclude audio_data to reduce payload size
+        row = DBOS.sql_session.execute(
+            select(stories.c.id, stories.c.image_data, stories.c.keywords, 
+                   stories.c.story, stories.c.created_at, stories.c.language,
+                   stories.c.student_name, stories.c.school_name, stories.c.class_name)
+            .where(stories.c.id == story_id)
+        ).first()
+    
+    if not row:
+        return None
+    
+    if include_audio:
+        return {
+            "id": row[0],
+            "image_data": row[1],
+            "keywords": row[2],
+            "story": row[3],
+            "created_at": row[4],
+            "language": row[5],
+            "audio_data": row[6],
+            "student_name": row[7] or "",
+            "school_name": row[8] or "",
+            "class_name": row[9] or ""
+        }
+    else:
+        return {
+            "id": row[0],
+            "image_data": row[1],
+            "keywords": row[2],
+            "story": row[3],
+            "created_at": row[4],
+            "language": row[5],
+            "student_name": row[6] or "",
+            "school_name": row[7] or "",
+            "class_name": row[8] or ""
+        }
+
+# Endpoint to get a specific story by ID
 @app.get("/story/{story_id}")
-def get_story_endpoint(story_id: str, include_audio: bool = Query(False), db: Session = Depends(get_db)):
+def get_story(story_id: str, include_audio: bool = Query(False)):
     try:
-        story_data = get_story_by_id_db(db, story_id, include_audio)
-        if not story_data:
-            raise HTTPException(status_code=404, detail=f"Story with ID {story_id} not found")
-        return story_data
-    except HTTPException: # Re-raise HTTPExceptions (like 404)
+        story = get_story_by_id(story_id, include_audio)
+        if not story:
+            raise HTTPException(status_code=404, detail="Story not found")
+        return story
+    except HTTPException:
+        # Re-raise HTTP exceptions like 404
         raise
     except Exception as e:
-        logger.error(f"Error in get_story endpoint for ID {story_id}: {str(e)}")
-        if "No space left on device" in str(e):
-             logger.critical(f"DATABASE ERROR: No space left on device. {e}")
-             raise HTTPException(status_code=503, detail="Database storage is full. Please contact the administrator.")
-        raise HTTPException(status_code=500, detail=f"Internal server error retrieving story ID {story_id}.")
+        # Log the error
+        error_message = str(e)
+        DBOS.logger.error(f"Error in get_story endpoint: {error_message}")
+        
+        # Check if it's a disk space error
+        if "No space left on device" in error_message:
+            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Database storage is full. Please contact the administrator."}
+            )
+            
+        # For other errors, return a generic error
+        raise HTTPException(status_code=500, detail="Internal server error")
 
+# Database transaction to delete a story by ID
+@DBOS.transaction()
+def delete_story_by_id(story_id: str) -> bool:
+    result = DBOS.sql_session.execute(
+        stories.delete().where(stories.c.id == story_id)
+    )
+    return result.rowcount > 0
+
+# Endpoint to analyze the image and generate a story
 @app.post("/analyze-image")
-async def analyze_image_endpoint(
-    image: UploadFile = File(...),
-    keywords: str = Form(...),
+async def analyze_image(
+    image: UploadFile = File(...), 
+    keywords: str = Form(...), 
     language: str = Form("Arabic"),
-    student_name: Optional[str] = Form(None), # Use Optional and default to None
-    school_name: Optional[str] = Form(None),
-    class_name: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
+    student_name: str = Form(""),
+    school_name: str = Form(""),
+    class_name: str = Form("")
 ):
     try:
-        if not image.content_type or not image.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image type")
-
-        image_data = await image.read()
-        if not image_data:
-            raise HTTPException(status_code=400, detail="Empty image file uploaded")
-
-        base64_image = encode_image(image_data)
-        logger.info(f"Analyzing image. Language: {language}, Keywords: '{keywords}', Student: '{student_name}'")
-
+        # Check if the image file is valid
+        if not image.content_type.startswith('image/'):
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Uploaded file is not an image"}
+            )
+            
+        # Read the uploaded image
+        try:
+            image_data = await image.read()
+            if not image_data:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "Empty image file"}
+                )
+        except Exception as e:
+            DBOS.logger.error(f"Error reading image: {str(e)}")
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Could not read image file"}
+            )
+        
+        # Encode the image to base64
+        try:
+            base64_image = encode_image(image_data)
+        except Exception as e:
+            DBOS.logger.error(f"Error encoding image: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Could not process image"}
+            )
+        
+        # Log the request
+        DBOS.logger.info(f"Analyzing image for keywords: {keywords}, language: {language}")
+        
+        # Format system message with the selected language
         formatted_system_message = system_message.format(language=language)
         
-        completion = client.chat.completions.create(
-            model="gpt-4o", # Using model from user's provided file
-            messages=[
-                {"role": "system", "content": formatted_system_message},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"The keywords are: {keywords}\n\n and here's the drawing:" if keywords else "Here's the drawing:"},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{image.content_type};base64,{base64_image}",
-                                "detail": "high", # Consider 'low' if high detail is not needed and to save costs/time
+        # Create the OpenAI API request
+        try:
+            completion = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": formatted_system_message},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"The keywords are: {keywords}\n\n and here's the drawing:" if keywords else "Here's the drawing:"},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
+                                    "detail": "high",
+                                },
                             },
-                        },
-                    ],
-                }
-            ],
-        )
-        story_content = completion.choices[0].message.content
-        if not story_content:
-            logger.warning("OpenAI returned an empty story.")
-            # Decide how to handle empty story - raise error or return specific message
-            raise HTTPException(status_code=503, detail="AI service generated an empty story.")
+                        ],
+                    }
+                ],
+            )
             
-        story_id = str(uuid.uuid4())
-
-        save_story_db(db, story_id, base64_image, keywords, story_content, language, student_name, school_name, class_name)
+            story = completion.choices[0].message.content
+        except Exception as e:
+            DBOS.logger.error(f"OpenAI API error: {str(e)}")
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Error communicating with AI service"}
+            )
         
-        return {"story": story_content, "id": story_id}
-
-    except OpenAI_APIError as e: # Specific OpenAI error
-        logger.error(f"OpenAI API error during image analysis: {str(e)}")
-        raise HTTPException(status_code=503, detail=f"Error communicating with AI service: {str(e)}")
-    except HTTPException: # Re-raise HTTPExceptions
-        raise
+        # Generate a unique ID for the story
+        story_id = str(uuid.uuid4())
+        
+        # Save the story to the database
+        try:
+            direct_save_story(story_id, base64_image, keywords, story, language, student_name, school_name, class_name)
+        except Exception as e:
+            error_message = str(e)
+            DBOS.logger.error(f"Error saving story: {error_message}")
+            
+            # Check if it's a disk space error
+            if "No space left on device" in error_message:
+                DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "Database storage is full. Please contact the administrator."}
+                )
+                
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Could not save story to database"}
+            )
+        
+        # Return the generated story and its ID
+        return {"story": story, "id": story_id}
     except Exception as e:
-        logger.error(f"Unexpected error in analyze_image endpoint: {str(e)}")
-        if "No space left on device" in str(e):
-             logger.critical(f"DATABASE ERROR: No space left on device. {e}")
-             raise HTTPException(status_code=503, detail="Database storage is full. Please contact the administrator.")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during image analysis: {str(e)}")
+        # Catch all other exceptions
+        DBOS.logger.error(f"Unexpected error in analyze_image: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "An unexpected error occurred"}
+        )
 
+# Endpoint to delete a story by ID
 @app.delete("/story/{story_id}")
-def delete_story_endpoint(story_id: str, db: Session = Depends(get_db)):
+def delete_story(story_id: str):
     try:
-        logger.info(f"Attempting to delete story with ID: {story_id}")
-        success = delete_story_by_id_db(db, story_id)
+        DBOS.logger.info(f"Deleting story with ID: {story_id}")
+        success = delete_story_by_id(story_id)
         if not success:
-            raise HTTPException(status_code=404, detail=f"Story with ID {story_id} not found or could not be deleted")
-        return {"message": f"Story with ID {story_id} deleted successfully", "id": story_id}
+            return {"success": False, "error": "Story not found"}
+        return {"success": True}
+    except Exception as e:
+        # Log the error
+        error_message = str(e)
+        DBOS.logger.error(f"Error in delete_story endpoint: {error_message}")
+        
+        # Check if it's a disk space error
+        if "No space left on device" in error_message:
+            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": "Database storage is full. Please contact the administrator."}
+            )
+            
+        # For other database errors
+        return {"success": False, "error": "Database error occurred"}
+
+# Endpoint to convert text to speech
+@app.get("/tts/{story_id}")
+def text_to_speech(story_id: str):
+    try:
+        # Get the story with audio data
+        story = get_story_by_id(story_id, include_audio=True)
+        if not story:
+            raise HTTPException(status_code=404, detail="Story not found")
+        
+        # Check if we already have audio data saved for this story
+        if story.get("audio_data"):
+            try:
+                # Decode the stored audio data
+                audio_bytes = base64.b64decode(story["audio_data"])
+                return Response(
+                    content=audio_bytes,
+                    media_type="audio/mpeg"
+                )
+            except Exception as e:
+                DBOS.logger.error(f"Error decoding stored audio: {str(e)}")
+                # Fall through to regenerate audio if there's an error
+        
+        # If no audio data is saved or there was an error, generate it
+        # Get the text and language
+        text = story["story"]
+        language = story.get("language", "Arabic")
+        
+        try:
+            # Select voice based on language
+            if language == "Arabic":
+                # Use an Arabic TTS voice
+                audio_data = stream_elements.requestTTS(text, stream_elements.Voice.Hoda.value)
+            else:
+                # Use an English TTS voice
+                audio_data = stream_elements.requestTTS(text, stream_elements.Voice.Amy.value)
+            
+            # Try to save the audio data to the database, but don't fail if it can't be saved
+            try:
+                save_audio_data(story_id, audio_data)
+            except Exception as save_error:
+                # Log the error but continue without saving
+                DBOS.logger.error(f"Failed to save audio data: {str(save_error)}")
+                # Check if it's a disk space error and log a more specific message
+                if "No space left on device" in str(save_error):
+                    DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            
+            # Return the audio file even if saving failed
+            return Response(
+                content=audio_data,
+                media_type="audio/mpeg"
+            )
+        except Exception as e:
+            DBOS.logger.error(f"TTS error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"TTS service error: {str(e)}")
+            
     except HTTPException:
+        # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"Error in delete_story endpoint for ID {story_id}: {str(e)}")
-        if "No space left on device" in str(e):
-             logger.critical(f"DATABASE ERROR: No space left on device. {e}")
-             raise HTTPException(status_code=503, detail="Database storage is full. Please contact the administrator.")
-        raise HTTPException(status_code=500, detail=f"Internal server error deleting story ID {story_id}.")
+        # Log the error
+        error_message = str(e)
+        DBOS.logger.error(f"Error in text_to_speech endpoint: {error_message}")
+        
+        # Check if it's a disk space error
+        if "No space left on device" in error_message:
+            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Database storage is full. Please contact the administrator."}
+            )
+            
+        # For other errors, return a generic error
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-# The following is for local development convenience if you run `python app/main.py`
-# Render will use the Procfile: `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting Uvicorn server for local development on http://0.0.0.0:8000")
-    # Ensure uvicorn runs from the project root if this file is in app/main.py
-    # For `uvicorn app.main:app`, the current directory when running this script doesn't matter as much
-    # as the directory from which the uvicorn command itself is launched.
-    # If running `python app/main.py`, then HTML path for FileResponse might need adjustment if not run from project root.
-    # However, for Render, the Procfile command `uvicorn app.main:app` is run from the project root.
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, app_dir="app") # Assuming main.py is in app/
+# Serve the HTML frontend
+@app.api_route("/", methods=["GET", "HEAD"])
+def home():
+    with open("html/app.html", "r", encoding="utf-8") as file:
+        html_content = file.read()
+    return HTMLResponse(content=html_content)
 
+@app.get("/history")
+def history_page():
+    with open("html/history.html", "r", encoding="utf-8") as file:
+        html_content = file.read()
+    return HTMLResponse(content=html_content)
+
+# Database transaction to delete all stories
+@DBOS.transaction()
+def delete_all_stories() -> int:
+    try:
+        result = DBOS.sql_session.execute(
+            stories.delete()
+        )
+        return result.rowcount
+    except Exception as e:
+        DBOS.logger.error(f"Error deleting all stories: {str(e)}")
+        raise
+
+# Admin endpoint to clear the database
+@app.get("/admin/clear-database")
+def clear_database():
+    try:
+        DBOS.logger.info("Applying 20-story FIFO limit to database")
+        # Instead of clearing all stories, enforce the 20-story limit
+        # This will delete only the oldest stories if exceeding 20
+        count_result = DBOS.sql_session.execute(
+            select([text("COUNT(*)")]).select_from(stories)
+        ).scalar()
+        
+        # Enforce the story limit
+        enforce_story_limit(max_stories=20)
+        
+        DBOS.logger.info(f"Successfully enforced 20-story limit, current count: {count_result}")
+        return {"success": True, "message": f"Enforced 20-story limit. Database now contains the most recent stories."}
+    except Exception as e:
+        error_message = str(e)
+        DBOS.logger.error(f"Error enforcing story limit: {error_message}")
+        
+        # Check if it's a disk space error
+        if "No space left on device" in error_message:
+            DBOS.logger.critical("DATABASE ERROR: No space left on device. Please free up disk space.")
+            return JSONResponse(
+                status_code=500, 
+                content={"success": False, "error": "Database storage is full. Please contact the administrator."}
+            )
+        
+        # For other errors
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Database error: {error_message}"}
+        )
+
+# Admin endpoint to vacuum the database
+@app.get("/admin/vacuum-database")
+def vacuum_database():
+    try:
+        DBOS.logger.info("Running VACUUM FULL on database")
+        
+        # Create database connection parameters from dbos-config.yaml
+        db_host = "userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com"
+        db_port = 5432
+        db_user = "dbos_user"
+        db_pass = "heritage2025"
+        db_name = "postgres"
+        
+        # Use psycopg directly (version 3) instead of SQLAlchemy and psycopg2
+        import psycopg
+        
+        DBOS.logger.info("Connecting to PostgreSQL database")
+        # Connect with autocommit=True because VACUUM can't run inside a transaction
+        conn = psycopg.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_pass,
+            dbname=db_name,
+            autocommit=True
+        )
+        
+        try:
+            with conn.cursor() as cur:
+                # Execute vacuum command on the stories table only
+                DBOS.logger.info("Vacuuming stories table")
+                cur.execute("VACUUM FULL stories")
+                
+                # Also run ANALYZE to update statistics
+                DBOS.logger.info("Analyzing stories table")
+                cur.execute("ANALYZE stories")
+                
+                DBOS.logger.info("VACUUM FULL completed successfully")
+                return {"success": True, "message": "Database maintenance completed successfully"}
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        error_message = str(e)
+        DBOS.logger.error(f"Error vacuuming database: {error_message}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Database maintenance error: {error_message}"}
+        )
+
+# Direct database function to save a story (no DBOS transaction)
+def direct_save_story(story_id: str, image_data: str, keywords: str, story: str, language: str, 
+               student_name: str = "", school_name: str = "", class_name: str = "") -> None:
+    
+    # Create database connection parameters from dbos-config.yaml
+    db_host = "userdb-8ca4bad3-091a-4435-bd71-5ec99b2d6cfb.cvc4gmaa6qm9.us-east-1.rds.amazonaws.com"
+    db_port = 5432
+    db_user = "dbos_user"
+    db_pass = "heritage2025"
+    db_name = "postgres"
+    
+    # Use psycopg directly
+    import psycopg
+    
+    try:
+        # Connect to database
+        conn = psycopg.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_pass,
+            dbname=db_name
+        )
+        
+        # Create a cursor and begin transaction
+        with conn:  # This automatically manages transactions
+            with conn.cursor() as cur:
+                # Insert the new story
+                cur.execute(
+                    """
+                    INSERT INTO stories 
+                    (id, image_data, keywords, story, created_at, language, student_name, school_name, class_name)
+                    VALUES (%s, %s, %s, %s, NOW(), %s, %s, %s, %s)
+                    """,
+                    (story_id, image_data, keywords, story, language, student_name, school_name, class_name)
+                )
+                
+                # Count total stories
+                cur.execute("SELECT COUNT(*) FROM stories")
+                count_result = cur.fetchone()[0]
+                
+                # If we have more than 20 stories, delete the oldest ones
+                if count_result > 20:
+                    # Calculate how many stories need to be deleted
+                    stories_to_delete = count_result - 20
+                    
+                    # Find the IDs of the oldest stories
+                    cur.execute(
+                        """
+                        SELECT id FROM stories
+                        ORDER BY created_at
+                        LIMIT %s
+                        """,
+                        (stories_to_delete,)
+                    )
+                    
+                    oldest_stories = cur.fetchall()
+                    
+                    # Delete each of the oldest stories
+                    for story_row in oldest_stories:
+                        DBOS.logger.info(f"FIFO limit: Deleting old story with ID: {story_row[0]}")
+                        cur.execute("DELETE FROM stories WHERE id = %s", (story_row[0],))
+                    
+                    DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
+        
+    except Exception as e:
+        DBOS.logger.error(f"Error saving story: {str(e)}")
+        raise
