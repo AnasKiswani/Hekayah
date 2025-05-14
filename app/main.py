@@ -1,11 +1,13 @@
+from sqlalchemy.orm import Session
 import os
 import base64
 import uuid
 from typing import List, Optional
 from sqlalchemy import Table, Column, String, MetaData, select, text, desc
+from sqlalchemy.orm import Session
 
 from dbos import DBOS
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
@@ -13,6 +15,13 @@ from dotenv import load_dotenv
 from pyt2s.services import stream_elements
 
 load_dotenv()
+
+# --- Database Setup ---
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/db_name")
+if DATABASE_URL == "postgresql://user:password@localhost/db_name":
+    print("WARNING: DATABASE_URL not set, using default local placeholder")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Initialize Maydan Al Hekayah application with DBOS and FastAPI
 app = FastAPI()
@@ -115,7 +124,7 @@ def enforce_story_limit(max_stories: int = 20) -> None:
             DBOS.logger.info(f"FIFO limit: Deleted {stories_to_delete} oldest stories to maintain 20-story limit")
     except OpenAIError as e:
         logger.error(f"OpenAI API error: {e}")
-        raise HTTPException(status_code=503, detail=f"OpenAI error: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"⚠️ OpenAI error → {str(e)}")
 
     except Exception as e:
         DBOS.logger.error(f"Error enforcing story limit: {str(e)}")
@@ -136,6 +145,15 @@ def save_audio_data(story_id: str, audio_data: bytes) -> None:
 
 # Database transaction to get story history with pagination support
 @DBOS.transaction()
+
+# --- Dependency to get DB session ---
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = True) -> List[dict]:
     try:
         # Query with pagination and optional image data
@@ -184,14 +202,30 @@ def get_story_history(limit: int = 10, offset: int = 0, include_images: bool = T
 
 # Endpoint to get story history
 @app.get("/story-history")
-def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(True)):
+def get_story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), include_images: bool = Query(False), db: Session = Depends(get_db)):
     try:
-        # Ensure limit is within valid range
-        if limit < 1:
-            limit = 10
-        elif limit > 100:
-            limit = 100
-            
+        columns = [
+            stories_table.c.id,
+            stories_table.c.keywords,
+            stories_table.c.created_at,
+            stories_table.c.language,
+            stories_table.c.student_name,
+            stories_table.c.school_name,
+            stories_table.c.class_name
+        ]
+        if include_images:
+            columns.insert(2, stories_table.c.image_data)
+        query = select(*columns).order_by(desc(stories_table.c.created_at)).limit(limit).offset(offset)
+        results = db.execute(query).fetchall()
+        response = []
+        for row in results:
+            item = dict(row._mapping)
+            response.append(item)
+        return response
+    except Exception as e:
+        logger.error(f"Error in story-history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
         # Ensure offset is non-negative
         if offset < 0:
             offset = 0
@@ -348,6 +382,7 @@ async def analyze_image(
         
         # Create the OpenAI API request
         try:
+            logger.info("Calling OpenAI API with image and keywords...")
             completion = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
