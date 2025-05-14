@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import create_engine, Table, Column, String, MetaData, select, desc, DateTime, func
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query, Depends
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -76,13 +76,14 @@ def encode_image(image_data):
     return base64.b64encode(image_data).decode("utf-8")
 
 # --- Routes ---
+
 @app.api_route("/", methods=["GET", "HEAD"])
 async def serve_homepage():
     return FileResponse("html/app.html")
 
-@app.get("/history", include_in_schema=False)
-async def redirect_history():
-    return RedirectResponse(url="/")
+@app.get("/history", response_class=FileResponse)
+async def serve_history_page():
+    return FileResponse("html/history.html")
 
 @app.get("/story-history")
 def story_history(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0),
@@ -161,7 +162,7 @@ async def analyze_image(
 ):
     try:
         if not image.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Invalid image format")
+            raise HTTPException(status_code=400, detail="Uploaded file is not an image")
 
         image_data = await image.read()
         if not image_data:
@@ -200,8 +201,10 @@ async def analyze_image(
         db.commit()
 
         return {"story": story_content, "id": story_id}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Image analysis failed")
+        logger.error(f"Unexpected error in analyze_image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error during image analysis: {str(e)}")
 
 @app.delete("/story/{story_id}")
 def delete_story(story_id: str, db: Session = Depends(get_db)):
